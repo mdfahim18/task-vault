@@ -15,4 +15,17 @@ const shutdown = async (signal: string): Promise<void> => {
     process.exit(1);
   }, shutdown_timeout);
   forceTimer.unref();
+
+  try {
+    if(server){
+      server.closeIdleConnection();
+      await new Promise<void>((resolve, reject) => {
+        server!.close(err => reject(err) : resolve())
+      })
+      logger.info('https server closed')
+    }
+  } catch (error) {
+    console.log('error', error);
+
+  }
 };
