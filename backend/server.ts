@@ -1,9 +1,12 @@
 import type { Server } from "node:http";
 import { logger } from "./src/utils/logger.ts";
 import { connectDb, disconnectDb } from "./src/config/db.ts";
-import { log } from "node:console";
+import { app } from "./src/app.ts";
+import { env } from "./src/config/env.ts";
+import { en } from "zod/v4/locales";
 
 const shutdown_timeout = 10_000;
+const keepAlive_timeout = 65_000;
 let isShuttingDown = false;
 let server: Server | null = null;
 
@@ -46,10 +49,39 @@ process.once("uncaughtException", (err: Error) => {
 
 const startServer = async (): Promise<void> => {
   await connectDb();
+  server = app.listen(env.PORT, () => {
+    logger.info(
+      {
+        port: env.PORT,
+        env: env.NODE_ENV,
+        pid: process.pid,
+        node: process.version,
+      },
+      "server started"
+    );
+    logger.info({ url: `http://localhost:${env.PORT}/api/v1` });
+  });
+
+  server.keepAliveTimeout = keepAlive_timeout;
+  server.headersTimeout = keepAlive_timeout + 5_000;
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      logger.fatal({ port: env.PORT }, `port ${env.PORT} is already in use`);
+    } else if (err.code === "EACCES") {
+      logger.fatal(
+        { port: env.PORT },
+        `port ${env.PORT} equires elevated priviledges`
+      );
+    } else {
+      logger.fatal({ err }, "server encountered a fatal error");
+    }
+    process.exit(1);
+  });
 };
 
 try {
   startServer();
 } catch (error) {
-  console.log(error);
+  logger.fatal({ error }, "faild to start server");
+  process.exit(1);
 }
