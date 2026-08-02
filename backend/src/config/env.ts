@@ -5,6 +5,12 @@ const envSchema = z.object({
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace"])
     .optional(),
+  PORT: z.coerce.number().int().min(1).max(65535).default(5000),
+  MONGODB_URI: z
+    .string()
+    .trim()
+    .min(1, { message: "mangodb uri is required" })
+    .startsWith("mongodb", { message: "mongodb uri must start with mongodb" }),
 });
 
 const parsed = envSchema.safeParse(process.env);

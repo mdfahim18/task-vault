@@ -1,6 +1,7 @@
 import type { Server } from "node:http";
 import { logger } from "./src/utils/logger.ts";
-import { disconnectDb } from "./src/config/db.ts";
+import { connectDb, disconnectDb } from "./src/config/db.ts";
+import { log } from "node:console";
 
 const shutdown_timeout = 10_000;
 let isShuttingDown = false;
@@ -42,3 +43,13 @@ process.once("uncaughtException", (err: Error) => {
   logger.fatal({ err }, "uncaught exception shutdown");
   shutdown("uncaughtException");
 });
+
+const startServer = async (): Promise<void> => {
+  await connectDb();
+};
+
+try {
+  startServer();
+} catch (error) {
+  console.log(error);
+}
