@@ -32,3 +32,13 @@ const shutdown = async (signal: string): Promise<void> => {
     process.exit(1);
   }
 };
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.once("unhandledRejection", (reason: unknown) => {
+  logger.error({ err: reason }, "unhandled rejection shutdown");
+});
+process.once("uncaughtException", (err: Error) => {
+  logger.fatal({ err }, "uncaught exception shutdown");
+  shutdown("uncaughtException");
+});
