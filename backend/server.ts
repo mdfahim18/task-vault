@@ -1,6 +1,6 @@
 import {logger} from "./src/utils/logger.js";
 import type {Server} from "node:http";
-import {disconnectDb} from "./src/config/db.js";
+import {connectDb, disconnectDb} from "./src/config/db.js";
 
 const shutdown_timeout = 10_000
 let isShuttingDown = false
@@ -31,4 +31,19 @@ const shutdown = async (signal: string): Promise<void> => {
     logger.error({err}, 'error during shutdown cleanup')
     process.exit(1)
   }
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
+process.once('unhandledRejection', (reason: unknown) => {
+ logger.error({err: reason}, 'unhandled rejection shutdown')
+ shutdown('unhandledRejection')
+})
+process.once('uncaughtException', (err: Error) => {
+ logger.fatal({err}, 'uncaught exception shutdown')
+ shutdown('uncaughtException')
+})
+
+const startServer = async (): Promise<void> => {
+ await connectDb()
 }
