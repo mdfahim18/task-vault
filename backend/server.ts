@@ -1,5 +1,6 @@
 import type { Server } from "node:http";
 import { logger } from "./src/utils/logger.ts";
+import { disconnectDb } from "./src/config/db.ts";
 
 const shutdown_timeout = 10_000;
 let isShuttingDown = false;
@@ -17,15 +18,17 @@ const shutdown = async (signal: string): Promise<void> => {
   forceTimer.unref();
 
   try {
-    if(server){
+    if (server) {
       server.closeIdleConnection();
       await new Promise<void>((resolve, reject) => {
-        server!.close(err => reject(err) : resolve())
-      })
-      logger.info('https server closed')
+        server!.close((err) => (err ? reject(err) : resolve()));
+      });
+      logger.info("https server closed");
     }
-  } catch (error) {
-    console.log('error', error);
 
+    await disconnectDb();
+  } catch (error) {
+    logger.info({ error }, "error during shutdown clean up");
+    process.exit(1);
   }
 };
