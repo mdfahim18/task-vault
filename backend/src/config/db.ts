@@ -22,6 +22,10 @@ const connection_options: ConnectOptions = {
   heartbeatFrequencyMS: 10_000,
   retryWrites: true,
   compressors: ["snappy", "zstd"],
+  ...(isProduction && {
+    w: "majority",
+    readPreference: "secondaryPreferred" as const,
+  }),
 };
 export const connectDb = async (): Promise<void> => {
   if (mongoose.connection.readyState === 1) return;
