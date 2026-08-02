@@ -14,7 +14,15 @@ mongoose.connection.on("reconnected", () => {
 
 const isProduction = env.NODE_ENV === "production";
 
-const connection_options: ConnectOptions = {};
+const connection_options: ConnectOptions = {
+  maxPoolSize: isProduction ? 100 : 10,
+  minPoolSize: isProduction ? 10 : 2,
+  serverSelectionTimeoutMS: 5_000,
+  socketTimeoutMS: 45_000,
+  heartbeatFrequencyMS: 10_000,
+  retryWrites: true,
+  compressors: ["snappy", "zstd"],
+};
 export const connectDb = async (): Promise<void> => {
   if (mongoose.connection.readyState === 1) return;
   const connectionDb = await mongoose.connect(
