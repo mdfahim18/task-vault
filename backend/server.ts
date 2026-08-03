@@ -23,7 +23,7 @@ const shutdown = async (signal: string): Promise<void> => {
 
   try {
     if (server) {
-      server.closeIdleConnection();
+      server.closeIdleConnections();
       await new Promise<void>((resolve, reject) => {
         server!.close((err) => (err ? reject(err) : resolve()));
       });
