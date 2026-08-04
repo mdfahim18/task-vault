@@ -56,7 +56,9 @@ const startServer = async (): Promise<void> => {
       pid: process.pid,
       node: process.version
     }, 'server started')
-    logger.info({url: `http://localhost:${env.PORT}/api/v1`})
+    if (env.isDevelopment) {
+      logger.info({url: `http://localhost:${env.PORT}/api/v1`}, 'local endpoints')
+    }
   })
 
   server.keepAliveTimeout = keepAlive_timeout
