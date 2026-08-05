@@ -6,6 +6,9 @@ import { env } from "./src/config/env.ts";
 
 const shutdown_timeout = 10_000;
 const keepAlive_timeout = 65_000;
+const request_timeout = 30_000;
+const headers_timeout = keepAlive_timeout + 5_000;
+
 let isShuttingDown = false;
 let server: ReturnType<typeof createServer> | null = null;
 
@@ -53,7 +56,9 @@ const startServer = async (): Promise<void> => {
   const httpServer = createServer(app);
 
   httpServer.keepAliveTimeout = keepAlive_timeout;
-  httpServer.headersTimeout = keepAlive_timeout + 5_000;
+  httpServer.headersTimeout = headers_timeout;
+  httpServer.requestTimeout = request_timeout;
+
   httpServer.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE") {
       logger.fatal({ port: env.PORT }, `port ${env.PORT} is already in use`);
