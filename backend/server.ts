@@ -4,6 +4,12 @@ import { connectDb, disconnectDb } from "./src/config/db.ts";
 import { app } from "./src/app.ts";
 import { env } from "./src/config/env.ts";
 
+const listen_error: Readonly<Record<string, string>> = {
+
+  EDDRINUSE: 'is already in use',
+  EACCESS: 'requires elevated privileges'
+
+}
 const shutdown_timeout = 10_000;
 const keepAlive_timeout = 65_000;
 const request_timeout = 30_000;
