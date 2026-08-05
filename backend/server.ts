@@ -60,7 +60,9 @@ const startServer = async (): Promise<void> => {
       },
       "server started"
     );
-    logger.info({ url: `http://localhost:${env.PORT}/api/v1` });
+    if (env.isDevelopment) {
+      logger.info({ url: `http://localhost:${env.PORT}/api/v1` });
+    }
   });
 
   server.keepAliveTimeout = keepAlive_timeout;

@@ -19,6 +19,17 @@ if (!parsed.success) {
   console.error("invalid environment variables", z.treeifyError(parsed.error));
   process.exit(1);
 }
-export type Env = z.infer<typeof envSchema>;
 
-export const env: Env = Object.freeze(parsed.data);
+const data = parsed.data;
+
+type parsedEnv = z.infer<typeof envSchema>;
+export type Env = Readonly<
+  parsedEnv & {
+    readonly isDevelopment: boolean;
+  }
+>;
+
+export const env: Env = Object.freeze({
+  ...data,
+  isDevelopment: data.NODE_ENV === "development",
+});
