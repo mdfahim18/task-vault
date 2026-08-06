@@ -53,6 +53,13 @@ process.once('uncaughtException', (err: Error) => {
  shutdown('uncaughtException')
 })
 
+const attachProcessHandlers = (): void => {
+  const onFatal = (reason: string, level: 'fatal' | 'error') =>
+    (err: unknown): void => {
+    logger[level]({err}, `${reason} - initiating shutdown`)
+    }
+}
+
 const startServer = async (): Promise<void> => {
  await connectDb()
   const httpServer = createServer(app)
@@ -63,6 +70,9 @@ const startServer = async (): Promise<void> => {
   httpServer.on('error', (err: NodeJS.ErrnoException) => {
     const listenError = listen_errors[err.code ?? '']
     logger.fatal({err, ...(listenError && {port: env.PORT})}, listenError ? `port ${env.PORT} ${listenError}` : 'server encountered a fatal error')
+  })
+  await new Promise<void>(resolve => {
+    httpServer.listen(env.PORT, resolve)
   })
 }
 
