@@ -4,12 +4,10 @@ import { connectDb, disconnectDb } from "./src/config/db.ts";
 import { app } from "./src/app.ts";
 import { env } from "./src/config/env.ts";
 
-const listen_error: Readonly<Record<string, string>> = {
-
-  EDDRINUSE: 'is already in use',
-  EACCESS: 'requires elevated privileges'
-
-}
+const listen_errors: Readonly<Record<string, string>> = {
+  EDDRINUSE: "is already in use",
+  EACCESS: "requires elevated privileges",
+};
 const shutdown_timeout = 10_000;
 const keepAlive_timeout = 65_000;
 const request_timeout = 30_000;
@@ -66,16 +64,13 @@ const startServer = async (): Promise<void> => {
   httpServer.requestTimeout = request_timeout;
 
   httpServer.on("error", (err: NodeJS.ErrnoException) => {
-    if (err.code === "EADDRINUSE") {
-      logger.fatal({ port: env.PORT }, `port ${env.PORT} is already in use`);
-    } else if (err.code === "EACCES") {
-      logger.fatal(
-        { port: env.PORT },
-        `port ${env.PORT} equires elevated priviledges`
-      );
-    } else {
-      logger.fatal({ err }, "server encountered a fatal error");
-    }
+    const listenError = listen_errors[err.code ?? ""];
+    logger.fatal(
+      { err, ...(listenError && { port: env.PORT }) },
+      listenError
+        ? `port ${env.PORT} ${listenError}`
+        : "server encountered a fatal error"
+    );
     process.exit(1);
   });
 };
