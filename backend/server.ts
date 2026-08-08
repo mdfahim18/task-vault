@@ -1,13 +1,13 @@
-import {logger} from "./src/utils/logger.js";
-import {connectDb, disconnectDb} from "./src/config/db.js";
-import {app} from "./src/app.js";
-import {env} from "./src/config/env.js";
 import {createServer} from "node:http";
 import {setTimeout as delay} from 'node:timers/promises'
+import {env} from "@config/env.js";
+import {connectDb, disconnectDb} from "@config/db.js";
+import {app} from "@app";
+import {logger} from "@utils/logger.js";
 
 const listen_errors: Readonly<Record<string, string>> = {
- EDDRINUSE: 'is already in use',
- EACCESS: 'requires elevated privileges'
+ EADDRINUSE: 'is already in use',
+ EACCES: 'requires elevated privileges'
 }
 const shutdown_timeout = 15_000
 const keepAlive_timeout = 65_000
@@ -17,6 +17,12 @@ const drain_delay = env.isProduction ? 5_000 : 0
 let isShuttingDown = false
 let server: ReturnType<typeof createServer> | null = null
 
+const closeHttpServer = () => {
+ const activeServer = server
+  if (!activeServer?.listening) return
+  activeServer.closeIdleConnections()
+}
+  
 const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
  if (isShuttingDown) return
   isShuttingDown = true
@@ -30,6 +36,10 @@ const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
     logger.info({drainDelay: drain_delay}, 'draining before closinf listener')
     await delay(drain_delay)
   }
+  const steps: ReadonlyArray<readonly [label: string, close: () => Promise<void>]> = [
+    ['http server', closeHttpServer],
+    ['database connection', disconnectDb()]
+  ]
 }
 
 const attachProcessHandlers = (): void => {
