@@ -4,6 +4,7 @@ import {env} from "@config/env.js";
 import {connectDb, disconnectDb} from "@config/db.js";
 import {app} from "@app";
 import {logger} from "@utils/logger.js";
+import {clearTimeout} from "node:timers";
 
 const listen_errors: Readonly<Record<string, string>> = {
  EADDRINUSE: 'is already in use',
@@ -14,13 +15,28 @@ const keepAlive_timeout = 65_000
 const request_timeout = 30_000
 const headers_timeout = keepAlive_timeout + 5_000
 const drain_delay = env.isProduction ? 5_000 : 0
+const logFlushTimeOut = 500
 let isShuttingDown = false
 let server: ReturnType<typeof createServer> | null = null
 
-const closeHttpServer = () => {
+const exitAfterFlush = async (code: number): Promise<never> => {
+  await Promise.race([
+    new Promise<void>(resolve => {
+      logger.flush(() => resolve())
+    }),
+    delay(logFlushTimeOut)
+  ]).catch(() => undefined)
+  process.exit(code)
+}
+
+const closeHttpServer = async (): Promise<void> => {
  const activeServer = server
   if (!activeServer?.listening) return
   activeServer.closeIdleConnections()
+  await new Promise<void>((resolve, reject) => {
+    activeServer.close(err => (err ? reject(err) : resolve()))
+  })
+  logger.info('http server closed')
 }
   
 const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
@@ -38,8 +54,18 @@ const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
   }
   const steps: ReadonlyArray<readonly [label: string, close: () => Promise<void>]> = [
     ['http server', closeHttpServer],
-    ['database connection', disconnectDb()]
+    ['database connection', disconnectDb]
   ]
+  let cleanupFailed = false
+  for (const [label, close] of steps) {
+    try {
+      await close()
+    } catch (err) {
+      cleanupFailed = true
+      logger.error({err}, `failed to close ${label}`)
+    }
+  }
+  clearTimeout(forceTimer)
 }
 
 const attachProcessHandlers = (): void => {
