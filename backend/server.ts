@@ -8,7 +8,7 @@ const listen_errors: Readonly<Record<string, string>> = {
   EDDRINUSE: "is already in use",
   EACCESS: "requires elevated privileges",
 };
-const shutdown_timeout = 10_000;
+const shutdown_timeout = 15_000;
 const keepAlive_timeout = 65_000;
 const request_timeout = 30_000;
 const headers_timeout = keepAlive_timeout + 5_000;
@@ -16,14 +16,17 @@ const headers_timeout = keepAlive_timeout + 5_000;
 let isShuttingDown = false;
 let server: ReturnType<typeof createServer> | null = null;
 
-const shutdown = async (signal: string): Promise<void> => {
+const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
   if (isShuttingDown) return;
   isShuttingDown = true;
-  logger.info({ signal }, "shutting down gracefully");
+  logger.info({ reason, exitCode }, "shutting down gracefully");
 
   const forceTimer = setTimeout(() => {
-    logger.error({ timeOut: shutdown_timeout }, "gracefull shutdown timed out");
-    process.exit(1);
+    logger.error(
+      { timeOut: shutdown_timeout },
+      "gracefull shutdown timed out, forcing exit"
+    );
+    server?.closeAllConnections();
   }, shutdown_timeout);
   forceTimer.unref();
 
