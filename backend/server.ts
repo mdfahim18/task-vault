@@ -1,8 +1,8 @@
 import { createServer } from "node:http";
-import { logger } from "./src/utils/logger.ts";
-import { connectDb, disconnectDb } from "./src/config/db.ts";
-import { app } from "./src/app.ts";
-import { env } from "./src/config/env.ts";
+import { logger } from "@utils/logger.js";
+import { connectDb, disconnectDb } from "@config/db.js";
+import { app } from "@app";
+import { env } from "@config/env.js";
 
 const listen_errors: Readonly<Record<string, string>> = {
   EDDRINUSE: "is already in use",
