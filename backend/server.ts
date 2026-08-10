@@ -1,4 +1,4 @@
-import {createServer} from "node:http";
+import {createServer, type Server} from "node:http";
 import {setTimeout as delay} from 'node:timers/promises'
 import {env} from "@config/env.js";
 import {connectDb, disconnectDb} from "@config/db.js";
@@ -13,11 +13,14 @@ const listen_errors: Readonly<Record<string, string>> = {
 const shutdown_timeout = 15_000
 const keepAlive_timeout = 65_000
 const request_timeout = 30_000
-const headers_timeout = keepAlive_timeout + 5_000
+const headers_timeout = 30_000
 const drain_delay = env.isProduction ? 5_000 : 0
 const logFlushTimeOut = 500
+const connections_checking_interval = 5_000
+
 let isShuttingDown = false
-let server: ReturnType<typeof createServer> | null = null
+let server: Server | null = null
+let pendingExitCode = 0
 
 const exitAfterFlush = async (code: number): Promise<never> => {
   await Promise.race([
@@ -40,7 +43,13 @@ const closeHttpServer = async (): Promise<void> => {
 }
   
 const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
- if (isShuttingDown) return
+  if (exitCode !== 0 && pendingExitCode === 0) pendingExitCode = exitCode
+ if (isShuttingDown) {
+   if (exitCode !== 0) {
+     logger.error({reason, exitCode}, 'fatal error during shutdown')
+   }
+   return
+ }
   isShuttingDown = true
   logger.info({reason, exitCode}, 'shutting down gracefully')
   const forceTimer = setTimeout(() => {
@@ -66,6 +75,7 @@ const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
     }
   }
   clearTimeout(forceTimer)
+  await exitAfterFlush(cleanupFailed ? 1 : pendingExitCode)
 }
 
 const attachProcessHandlers = (): void => {
