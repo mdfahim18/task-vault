@@ -3,11 +3,11 @@ import { logger } from "@utils/logger.js";
 import { connectDb, disconnectDb } from "@config/db.js";
 import { app } from "@app";
 import { env } from "@config/env.js";
-import {setTimeout as delay} from 'node:timers/promises'
+import { setTimeout as delay } from "node:timers/promises";
 
 const listen_errors: Readonly<Record<string, string>> = {
   EADDRINUSE: "is already in use",
-  EACCESS: "requires elevated privileges",
+  EACCES: "requires elevated privileges",
 };
 const shutdown_timeout = 15_000;
 const keepAlive_timeout = 65_000;
@@ -37,8 +37,7 @@ const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
       { drainDelay: drain_delay },
       "draining before closing listener"
     );
-    await delay(drain_delay)
-
+    await delay(drain_delay);
   }
 
   try {
