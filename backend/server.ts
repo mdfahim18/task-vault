@@ -5,13 +5,14 @@ import { app } from "@app";
 import { env } from "@config/env.js";
 
 const listen_errors: Readonly<Record<string, string>> = {
-  EDDRINUSE: "is already in use",
+  EADDRINUSE: "is already in use",
   EACCESS: "requires elevated privileges",
 };
 const shutdown_timeout = 15_000;
 const keepAlive_timeout = 65_000;
 const request_timeout = 30_000;
 const headers_timeout = keepAlive_timeout + 5_000;
+const drain_delay = env.isProduction ? 5_000 : 0;
 
 let isShuttingDown = false;
 let server: ReturnType<typeof createServer> | null = null;
@@ -29,6 +30,14 @@ const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
     server?.closeAllConnections();
   }, shutdown_timeout);
   forceTimer.unref();
+
+  if (exitCode === 0 && drain_delay > 0) {
+    logger.info(
+      { drainDelay: drain_delay },
+      "draining before closing listener"
+    );
+
+  }
 
   try {
     if (server) {
@@ -79,6 +88,7 @@ const startServer = async (): Promise<void> => {
   await connectDb();
 
   const httpServer = createServer(app);
+  server = httpServer;
 
   httpServer.keepAliveTimeout = keepAlive_timeout;
   httpServer.headersTimeout = headers_timeout;
