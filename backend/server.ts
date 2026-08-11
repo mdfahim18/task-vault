@@ -68,11 +68,11 @@ process.once("uncaughtException", (err: Error) => {
 });
 
 const attachProcessHandlers = (): void => {
-  const onFatal = (reason: string, level: "fatal" | "error") => {
+  const onFatal =
+    (reason: string, level: "fatal" | "error") =>
     (err: unknown): void => {
       logger[level]({ err }, `${reason} - initiating shutdown`);
     };
-  };
 
   process.on("uncaughtException", onFatal("uncaughtException", "fatal"));
   process.on("unhandledRejection", onFatal("unhandledRejection", "error"));
