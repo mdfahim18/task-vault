@@ -56,20 +56,18 @@ const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
     ["http server", closeHttpServer],
     ["database connection", disconnectDb],
   ];
-  // try {
-  //   if (server) {
-  //     server.closeIdleConnections();
-  //     await new Promise<void>((resolve, reject) => {
-  //       server!.close((err) => (err ? reject(err) : resolve()));
-  //     });
-  //     logger.info("https server closed");
-  //   }
 
-  //   await disconnectDb();
-  // } catch (error) {
-  //   logger.info({ error }, "error during shutdown clean up");
-  //   process.exit(1);
-  // }
+  let cleanupFailed = false;
+  for (const [label, close] of steps) {
+    try {
+      await close();
+    } catch (err) {
+      cleanupFailed = true;
+      logger.error({ err }, `failed to close ${label}`);
+    }
+  }
+
+  clearTimeout(forceTimer);
 };
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
