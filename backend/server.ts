@@ -18,6 +18,16 @@ const drain_delay = env.isProduction ? 5_000 : 0;
 let isShuttingDown = false;
 let server: ReturnType<typeof createServer> | null = null;
 
+const closeHttpServer = async (): Promise<void> => {
+  const activeServer = server;
+  if (!activeServer?.listening) return;
+  activeServer.closeIdleConnections();
+  await new Promise<void>((resolve, reject) => {
+    activeServer.close((err) => (err ? reject(err) : resolve()));
+  });
+  logger.info("http server closed");
+};
+
 const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
   if (isShuttingDown) return;
   isShuttingDown = true;
@@ -40,10 +50,12 @@ const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
     await delay(drain_delay);
   }
 
-  const steps: ReadonlyArray<readonly [label: string, close: () => Promise<void>]> = [
-    ['http server', closeHttpServer],
-    ['database connection', disconnectDb],
-  ]
+  const steps: ReadonlyArray<
+    readonly [label: string, close: () => Promise<void>]
+  > = [
+    ["http server", closeHttpServer],
+    ["database connection", disconnectDb],
+  ];
   // try {
   //   if (server) {
   //     server.closeIdleConnections();
