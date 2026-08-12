@@ -40,20 +40,24 @@ const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
     await delay(drain_delay);
   }
 
-  try {
-    if (server) {
-      server.closeIdleConnections();
-      await new Promise<void>((resolve, reject) => {
-        server!.close((err) => (err ? reject(err) : resolve()));
-      });
-      logger.info("https server closed");
-    }
+  const steps: ReadonlyArray<readonly [label: string, close: () => Promise<void>]> = [
+    ['http server', closeHttpServer],
+    ['database connection', disconnectDb],
+  ]
+  // try {
+  //   if (server) {
+  //     server.closeIdleConnections();
+  //     await new Promise<void>((resolve, reject) => {
+  //       server!.close((err) => (err ? reject(err) : resolve()));
+  //     });
+  //     logger.info("https server closed");
+  //   }
 
-    await disconnectDb();
-  } catch (error) {
-    logger.info({ error }, "error during shutdown clean up");
-    process.exit(1);
-  }
+  //   await disconnectDb();
+  // } catch (error) {
+  //   logger.info({ error }, "error during shutdown clean up");
+  //   process.exit(1);
+  // }
 };
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
