@@ -1,4 +1,4 @@
-import { createServer } from "node:http";
+import { createServer, Server } from "node:http";
 import { logger } from "@utils/logger.js";
 import { connectDb, disconnectDb } from "@config/db.js";
 import { app } from "@app";
@@ -12,22 +12,23 @@ const listen_errors: Readonly<Record<string, string>> = {
 const shutdown_timeout = 15_000;
 const keepAlive_timeout = 65_000;
 const request_timeout = 30_000;
-const headers_timeout = keepAlive_timeout + 5_000;
+const headers_timeout = 30_000;
 const drain_delay = env.isProduction ? 5_000 : 0;
 const logFlushTimeOut = 500;
+const connections_checking_interval = 5_000;
+
 let isShuttingDown = false;
-let server: ReturnType<typeof createServer> | null = null;
+let server: Server | null = null;
 
 const exitAfterFlush = async (code: number): Promise<never> => {
   await Promise.race([
     new Promise<void>((resolve) => {
       logger.flush(() => resolve());
     }),
-    delay(logFlushTimeOut)
-  ]).catch(() => undefined)
+    delay(logFlushTimeOut),
+  ]).catch(() => undefined);
 
-  process.exit(code)
-
+  process.exit(code);
 };
 
 const closeHttpServer = async (): Promise<void> => {
