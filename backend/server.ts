@@ -58,7 +58,7 @@ const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
   }, shutdown_timeout)
   forceTimer.unref()
   if (exitCode === 0 && drain_delay > 0) {
-    logger.info({drainDelay: drain_delay}, 'draining before closinf listener')
+    logger.info({drainDelay: drain_delay}, 'draining before closing listener')
     await delay(drain_delay)
   }
   const steps: ReadonlyArray<readonly [label: string, close: () => Promise<void>]> = [
@@ -81,7 +81,13 @@ const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
 const attachProcessHandlers = (): void => {
   const onFatal = (reason: string, level: 'fatal' | 'error') =>
     (err: unknown): void => {
-    logger[level]({err}, `${reason} - initiating shutdown`)
+     try {
+       logger[level]({err}, `${reason} - initiating shutdown`)
+     } catch {
+       try {
+         logger[level]( `${reason} - initiating shutdown`)
+       } catch {}
+     }
     }
     process.on('uncaughtException', onFatal('uncaughtException', 'fatal'))
     process.on('unhandledRejection', onFatal('unhandledRejection', 'error'))
@@ -92,6 +98,15 @@ const attachProcessHandlers = (): void => {
     })
   }
 }
+
+const listen = (httpServer: Server, port: number): Promise<void> =>
+  new Promise<void>((resolve, reject) => {
+    httpServer.once('error', reject)
+    httpServer.listen(port, () => {
+      httpServer.removeListener('error', reject)
+      resolve()
+    })
+  })
 
 const startServer = async (): Promise<void> => {
  await connectDb()
