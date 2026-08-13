@@ -16,7 +16,6 @@ const request_timeout = 30_000
 const headers_timeout = 30_000
 const drain_delay = env.isProduction ? 5_000 : 0
 const logFlushTimeOut = 500
-const connections_checking_interval = 5_000
 
 let isShuttingDown = false
 let server: Server | null = null
@@ -116,18 +115,34 @@ const startServer = async (): Promise<void> => {
   httpServer.keepAliveTimeout = keepAlive_timeout
   httpServer.headersTimeout = headers_timeout
   httpServer.requestTimeout = request_timeout
+  await listen(httpServer, env.PORT)
   httpServer.on('error', (err: NodeJS.ErrnoException) => {
-    const listenError = listen_errors[err.code ?? '']
-    logger.fatal({err, ...(listenError && {port: env.PORT})}, listenError ? `port ${env.PORT} ${listenError}` : 'server encountered a fatal error')
+    logger.fatal({err}, 'server encountered a fatal error')
+    void shutdown('serverError', 1)
   })
+  logger.info({
+    port: env.PORT,
+    env: env.NODE_ENV,
+    pid: process.pid,
+    node: process.version
+  }, 'server started')
+  if (env.isDevelopment) {
+    const baseUrl = `http://localhost:${env.PORT}`;
+    logger.info({ api: `${baseUrl}/api/v1`, health: `${baseUrl}/health` }, 'Local endpoints');
+  }
   await new Promise<void>(resolve => {
     httpServer.listen(env.PORT, resolve)
   })
 }
-
+attachProcessHandlers()
 try {
   await startServer()
 } catch (err) {
-  logger.fatal({err}, 'failed to start server')
-  process.exit(1)
+  const code = (err as NodeJS.ErrnoException | null)?.code ?? ''
+  const listenError = listen_errors[code]
+  logger.fatal(
+    { err, ...(listenError && { port: env.PORT }) },
+    listenError ? `Port ${env.PORT} ${listenError}` : 'Failed to start server'
+  )
+  await shutdown('startupFailure', 1)
 }
