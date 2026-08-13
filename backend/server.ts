@@ -19,6 +19,7 @@ const connections_checking_interval = 5_000;
 
 let isShuttingDown = false;
 let server: Server | null = null;
+let pendingExitCode = 0;
 
 const exitAfterFlush = async (code: number): Promise<never> => {
   await Promise.race([
@@ -42,7 +43,13 @@ const closeHttpServer = async (): Promise<void> => {
 };
 
 const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
-  if (isShuttingDown) return;
+  if (exitCode !== 0 && pendingExitCode === 0) pendingExitCode = exitCode;
+  if (isShuttingDown) {
+    if (exitCode !== 0) {
+      logger.error({ reason, exitCode }, "fatal error during shutdown");
+    }
+    return;
+  }
   isShuttingDown = true;
   logger.info({ reason, exitCode }, "shutting down gracefully");
 
@@ -81,6 +88,7 @@ const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
   }
 
   clearTimeout(forceTimer);
+  await exitAfterFlush(cleanupFailed ? 1 : pendingExitCode);
 };
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
