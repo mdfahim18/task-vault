@@ -130,9 +130,6 @@ const startServer = async (): Promise<void> => {
     const baseUrl = `http://localhost:${env.PORT}`;
     logger.info({ api: `${baseUrl}/api/v1`, health: `${baseUrl}/health` }, 'Local endpoints');
   }
-  await new Promise<void>(resolve => {
-    httpServer.listen(env.PORT, resolve)
-  })
 }
 attachProcessHandlers()
 try {
