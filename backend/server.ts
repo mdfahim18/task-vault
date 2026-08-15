@@ -106,7 +106,13 @@ const attachProcessHandlers = (): void => {
   const onFatal =
     (reason: string, level: "fatal" | "error") =>
     (err: unknown): void => {
-      logger[level]({ err }, `${reason} - initiating shutdown`);
+      try {
+        logger[level]({ err }, `${reason} - initiating shutdown`);
+      } catch {
+        try {
+          logger[level]({ err }, `${reason} - initiating shutdown`);
+        } catch {}
+      }
     };
 
   process.on("uncaughtException", onFatal("uncaughtException", "fatal"));
