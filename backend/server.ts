@@ -144,8 +144,10 @@ const startServer = async (): Promise<void> => {
   httpServer.headersTimeout = headers_timeout;
   httpServer.requestTimeout = request_timeout;
   await listen(httpServer, env.PORT);
-
-
+  httpServer.on("error", (err: NodeJS.ErrnoException) => {
+    logger.fatal({ err }, "server encountered a fatal error");
+    void shutdown("serverError", 1);
+  });
 
   logger.info(
     {
@@ -165,9 +167,9 @@ const startServer = async (): Promise<void> => {
     );
   }
 
-  await new Promise<void>((resolve) => {
-    httpServer.listen(env.PORT, resolve);
-  });
+  // await new Promise<void>((resolve) => {
+  //   httpServer.listen(env.PORT, resolve);
+  // });
 };
 
 attachProcessHandlers();
