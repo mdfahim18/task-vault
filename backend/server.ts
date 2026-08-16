@@ -10,6 +10,15 @@ const request_timeout = 30_000;
 let shuttingDown = false;
 let server: Server | null = null;
 
+const listen = (httpServer: Server, port: number) =>
+  new Promise<void>((resolve, reject) => {
+    httpServer.once("error", reject);
+    httpServer.listen(port, () => {
+      httpServer.removeListener("error", reject);
+      resolve();
+    });
+  });
+
 const startServer = async (): Promise<void> => {
   await connectDb();
   if (shuttingDown) return;
