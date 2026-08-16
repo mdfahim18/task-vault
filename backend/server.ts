@@ -133,6 +133,7 @@ const listen = (httpServer: Server, port: number): Promise<void> =>
       httpServer.removeListener("error", reject);
     });
   });
+
 const startServer = async (): Promise<void> => {
   await connectDb();
 
@@ -153,14 +154,35 @@ const startServer = async (): Promise<void> => {
     );
   });
 
+  logger.info(
+    {
+      port: env.PORT,
+      env: env.NODE_ENV,
+      pid: process.pid,
+      node: process.version,
+    },
+    "server started"
+  );
+
+  if (env.isDevelopment) {
+    const baseUrl = `http://localhost:${env.PORT}`;
+    logger.info(
+      { api: `${baseUrl}/api/v1`, heath: `${baseUrl}/health` },
+      "Local endpoints"
+    );
+  }
+
   await new Promise<void>((resolve) => {
     httpServer.listen(env.PORT, resolve);
   });
 };
 
+attachProcessHandlers();
+
 try {
   startServer();
-} catch (error) {
-  logger.fatal({ error }, "faild to start server");
+} catch (err) {
+  const code = (err as NodeJS.ErrnoException | null)?.code ?? "";
+  logger.fatal({ err }, "faild to start server");
   process.exit(1);
 }
