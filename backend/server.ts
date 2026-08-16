@@ -143,16 +143,9 @@ const startServer = async (): Promise<void> => {
   httpServer.keepAliveTimeout = keepAlive_timeout;
   httpServer.headersTimeout = headers_timeout;
   httpServer.requestTimeout = request_timeout;
+  await listen(httpServer, env.PORT);
 
-  httpServer.on("error", (err: NodeJS.ErrnoException) => {
-    const listenError = listen_errors[err.code ?? ""];
-    logger.fatal(
-      { err, ...(listenError && { port: env.PORT }) },
-      listenError
-        ? `port ${env.PORT} ${listenError}`
-        : "server encountered a fatal error"
-    );
-  });
+
 
   logger.info(
     {
@@ -183,6 +176,10 @@ try {
   startServer();
 } catch (err) {
   const code = (err as NodeJS.ErrnoException | null)?.code ?? "";
-  logger.fatal({ err }, "faild to start server");
-  process.exit(1);
+  const listenError = listen_errors[code];
+  logger.fatal(
+    { err, ...(listenError && { port: env.PORT }) },
+    listenError ? `Port ${env.PORT} ${listenError}` : "Failed to start server"
+  );
+  await shutdown("startupFailure", 1);
 }
