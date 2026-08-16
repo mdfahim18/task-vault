@@ -4,6 +4,7 @@ import {app} from "@app";
 import {env} from "@config/env.js";
 import {clearInterval} from "node:timers";
 import {logger} from "@utils/logger.js";
+import {listenServer} from "@utils/http.server.js";
 
 const connections_checking_interval = 5_000
 const keep_alive_timeout = 65_000
@@ -14,12 +15,29 @@ const idle_sweep_interval = 100
 let shuttingDown = false
 let server: Server | null = null
 let httpClosePromise: Promise<void> | null = null
+let listenPromise: Promise<void> | null = null
+
+const logCrashSafely = (
+  level: 'fatal' | 'error',
+  bindings: Record<string, unknown>,
+  message: string
+): void => {
+  try {
+    logger[level](bindings, message)
+  } catch {
+    try {
+      logger[level](`${message} error details unserializable`)
+    } catch {}
+  }
+}
 
 const closeHttpServer = async (): Promise<void> => {
   if (httpClosePromise) return httpClosePromise
   const activeServer = server
-  if (!activeServer?.listening) return
+  if (!activeServer) return
   httpClosePromise = (async (): Promise<void> => {
+    if (listenPromise) await listenPromise
+    if (!activeServer?.listening) return
     const idleSweeper = setInterval(() => {
       activeServer.closeIdleConnections()
     }, idle_sweep_interval)
@@ -54,5 +72,17 @@ const startServer = async (): Promise<void> => {
   httpServer.headersTimeout = headers_timeout
   httpServer.requestTimeout = request_timeout
   if (shuttingDown) return
-  await listen(httpServer, env.PORT)
+  const pendingListen = (listenPromise = listenServer(httpServer, env.PORT))
+  try {
+    await pendingListen
+  } finally {
+    if (listenPromise === pendingListen) listenPromise = null
+  }
+  if (shuttingDown) {
+    await closeHttpServer()
+    return
+  }
+  httpServer.on('error', (err: NodeJS.ErrnoException) => {
+    logCrashSafely('fatal', {err}, 'server encountered a fatal error')
+  })
 }
