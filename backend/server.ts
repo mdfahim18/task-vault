@@ -1,14 +1,39 @@
 import { app } from "@app";
 import { connectDb } from "@config/db.js";
+import { env } from "@config/env.js";
+import { logger } from "@utils/logger.js";
 import { createServer, type Server } from "node:http";
 
 const connections_checking_interval = 5_000;
 const keep_alive_timeout = 65_000;
 const headers_timeout = 30_000;
 const request_timeout = 30_000;
+const idle_sweep_interval = 100;
 
 let shuttingDown = false;
 let server: Server | null = null;
+let httpClosePromise: Promise<void> | null = null;
+
+const coloseHttpServer = async (): Promise<void> => {
+  if (httpClosePromise) return httpClosePromise;
+  if (httpClosePromise) return;
+  const activeServer = server;
+  if (!activeServer?.listening) return;
+  httpClosePromise = (async (): Promise<void> => {
+    const idelSweeper = setInterval(() => {
+      activeServer.closeIdleConnections();
+    }, idle_sweep_interval);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        activeServer.close((err) => (err ? reject(err) : resolve()));
+      });
+    } finally {
+      clearInterval(idelSweeper);
+    }
+    logger.info("http server closed");
+  })();
+  return httpClosePromise;
+};
 
 const listen = (httpServer: Server, port: number) =>
   new Promise<void>((resolve, reject) => {
@@ -35,4 +60,5 @@ const startServer = async (): Promise<void> => {
   httpServer.requestTimeout = request_timeout;
 
   if (shuttingDown) return;
+  await listen(httpServer, env.PORT);
 };
