@@ -102,7 +102,7 @@ const shutdown = async (reason: string, exitCode: number): Promise<void> => {
   ];
 
   const forceTimer = setTimeout(() => {
-    // Sockets held open by slow or keep-alive clients would otherwise block close().
+    
     server?.closeAllConnections();
 
     try {
