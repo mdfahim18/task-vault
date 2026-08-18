@@ -23,6 +23,7 @@ const coloseHttpServer = async (): Promise<void> => {
   if (!activeServer) return;
   httpClosePromise = (async (): Promise<void> => {
     if (listenPromise) await listenPromise;
+    if (!activeServer?.listening) return;
     const idelSweeper = setInterval(() => {
       activeServer.closeIdleConnections();
     }, idle_sweep_interval);
@@ -65,8 +66,15 @@ const startServer = async (): Promise<void> => {
   if (shuttingDown) return;
   const pendingLlisten = (listenPromise = listenServer(httpServer, env.PORT));
   try {
-
-  }finally{
-
+    await pendingLlisten;
+  } finally {
+    if (listenPromise === pendingLlisten) listenPromise = null;
   }
+  if (shuttingDown) {
+    await coloseHttpServer();
+    return;
+  }
+  httpServer.on('error', (err: NodeJS.ErrnoException) => {
+    logCrashSafely()
+  })
 };
