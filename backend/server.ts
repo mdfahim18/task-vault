@@ -1,10 +1,10 @@
-import {connectDb} from "@config/db.js";
-import {createServer, type Server} from "node:http";
-import {app} from "@app";
-import {env} from "@config/env.js";
-import {clearInterval} from "node:timers";
-import {logger} from "@utils/logger.js";
-import {listenServer} from "@utils/http.server.js";
+import { connectDb } from "@config/db.js";
+import { createServer, type Server } from "node:http";
+import { app } from "@app";
+import { env } from "@config/env.js";
+import { clearInterval } from "node:timers";
+import { logger } from "@utils/logger.js";
+import { listenServer } from "@utils/http.server.js";
 
 const connections_checking_interval = 5_000
 const keep_alive_timeout = 65_000
@@ -29,7 +29,7 @@ const logCrashSafely = (
   } catch {
     try {
       logger[level](`${message} error details unserializable`)
-    } catch {}
+    } catch { }
   }
 }
 
@@ -44,7 +44,7 @@ const closeHttpServer = async (): Promise<void> => {
       activeServer.closeIdleConnections()
     }, idle_sweep_interval)
     try {
-      await new Promise<void> ((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         activeServer.close(err => (err ? reject(err) : resolve()))
       })
     } finally {
@@ -68,17 +68,16 @@ const initiateShutdown = (reason: string, exitCode: number): void => {
 }
 
 const shutdown = async (reason: string, exitCode: number): Promise<void> => {
- if (exitCode !== 0 && pendingExitCode === 0) pendingExitCode = exitCode
+  if (exitCode !== 0 && pendingExitCode === 0) pendingExitCode = exitCode
   if (shuttingDown) {
     if (exitCode !== 0) {
       drainController?.abort()
       server?.closeAllConnections()
-      logger.error({reason, exitCode}, 'fatal error during shutdown')
+      logger.error({ reason, exitCode }, 'fatal error during shutdown')
     }
     return
   }
 }
-
 const startServer = async (): Promise<void> => {
   await connectDb()
   if (shuttingDown) return
@@ -101,6 +100,6 @@ const startServer = async (): Promise<void> => {
     return
   }
   httpServer.on('error', (err: NodeJS.ErrnoException) => {
-    logCrashSafely('fatal', {err}, 'server encountered a fatal error')
+    logCrashSafely('fatal', { err }, 'server encountered a fatal error')
   })
 }
