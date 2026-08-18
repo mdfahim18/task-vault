@@ -16,6 +16,8 @@ let shuttingDown = false
 let server: Server | null = null
 let httpClosePromise: Promise<void> | null = null
 let listenPromise: Promise<void> | null = null
+let pendingExitCode = 0
+let drainController: AbortController | null = null
 
 const logCrashSafely = (
   level: 'fatal' | 'error',
@@ -60,6 +62,22 @@ const listen = (httpServer: Server, port: number) =>
       resolve()
     })
   })
+
+const initiateShutdown = (reason: string, exitCode: number): void => {
+
+}
+
+const shutdown = async (reason: string, exitCode: number): Promise<void> => {
+ if (exitCode !== 0 && pendingExitCode === 0) pendingExitCode = exitCode
+  if (shuttingDown) {
+    if (exitCode !== 0) {
+      drainController?.abort()
+      server?.closeAllConnections()
+      logger.error({reason, exitCode}, 'fatal error during shutdown')
+    }
+    return
+  }
+}
 
 const startServer = async (): Promise<void> => {
   await connectDb()
