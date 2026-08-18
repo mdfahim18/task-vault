@@ -16,6 +16,20 @@ let server: Server | null = null;
 let httpClosePromise: Promise<void> | null = null;
 let listenPromise: Promise<void> | null = null;
 
+const logCrashSafely = (
+  level: "fatal" | "error",
+  bindings: Record<string, unknown>,
+  message: string
+): void => {
+  try {
+    logger[level](bindings, message);
+  } catch (error) {
+    try {
+      logger[level](`${message} error details unserializable`);
+    } catch {}
+  }
+};
+
 const coloseHttpServer = async (): Promise<void> => {
   if (httpClosePromise) return httpClosePromise;
   if (httpClosePromise) return;
@@ -74,7 +88,7 @@ const startServer = async (): Promise<void> => {
     await coloseHttpServer();
     return;
   }
-  httpServer.on('error', (err: NodeJS.ErrnoException) => {
-    logCrashSafely()
-  })
+  httpServer.on("error", (err: NodeJS.ErrnoException) => {
+    logCrashSafely("fatal", { err }, "server encountered a fatal error");
+  });
 };
