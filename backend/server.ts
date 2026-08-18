@@ -1,15 +1,17 @@
 import { app } from "@app";
-import { connectDb } from "@config/db.js";
+import { connectDb, disconnectDb } from "@config/db.js";
 import { env } from "@config/env.js";
 import { logger } from "@utils/logger.js";
 import { createServer, type Server } from "node:http";
 import { listenServer } from "@utils/http.server.js";
+import { setTimeout as delay } from "node:timers/promises";
 
 const connections_checking_interval = 5_000;
 const keep_alive_timeout = 65_000;
 const headers_timeout = 30_000;
 const request_timeout = 30_000;
 const idle_sweep_interval = 100;
+const drainDelay = env.isProduction ? 5_000 : 0;
 
 let shuttingDown = false;
 let server: Server | null = null;
@@ -70,10 +72,31 @@ const shutdown = async (reason: string, exitCode: number): Promise<void> => {
     if (exitCode !== 0) {
       drainController?.abort();
       server?.closeAllConnections();
-      logger.error({reason, exitCode}, 'fatal error during shutdow')
+      logger.error({ reason, exitCode }, "fatal error during shutdow");
     }
-    return
+    return;
   }
+  shuttingDown = true;
+  logger.info({ reason, exitCode }, "shutting down");
+  if (pendingExitCode === 0 && drainDelay > 0) {
+    logger.info({ drainDelay: drainDelay }, "draining before closing listener");
+    drainController = new AbortController();
+    try {
+      await delay(drainDelay, undefined, { signal: drainController.signal });
+    } catch (err) {
+      if (!drainController.signal.aborted) throw err;
+    } finally {
+      drainController = null;
+    }
+  }
+
+  if (pendingExitCode !== 0) server?.closeAllConnections();
+  const steps: ReadonlyArray<
+    readonly [label: string, close: () => Promise<void>]
+  > = [
+    ["HTTP server", coloseHttpServer],
+    ["database connection", disconnectDb],
+  ];
 };
 
 const startServer = async (): Promise<void> => {
