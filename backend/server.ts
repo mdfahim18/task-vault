@@ -3,6 +3,7 @@ import { connectDb } from "@config/db.js";
 import { env } from "@config/env.js";
 import { logger } from "@utils/logger.js";
 import { createServer, type Server } from "node:http";
+import { listenServer } from "@utils/http.server.js";
 
 const connections_checking_interval = 5_000;
 const keep_alive_timeout = 65_000;
@@ -13,13 +14,15 @@ const idle_sweep_interval = 100;
 let shuttingDown = false;
 let server: Server | null = null;
 let httpClosePromise: Promise<void> | null = null;
+let listenPromise: Promise<void> | null = null;
 
 const coloseHttpServer = async (): Promise<void> => {
   if (httpClosePromise) return httpClosePromise;
   if (httpClosePromise) return;
   const activeServer = server;
-  if (!activeServer?.listening) return;
+  if (!activeServer) return;
   httpClosePromise = (async (): Promise<void> => {
+    if (listenPromise) await listenPromise;
     const idelSweeper = setInterval(() => {
       activeServer.closeIdleConnections();
     }, idle_sweep_interval);
@@ -60,5 +63,10 @@ const startServer = async (): Promise<void> => {
   httpServer.requestTimeout = request_timeout;
 
   if (shuttingDown) return;
-  await listen(httpServer, env.PORT);
+  const pendingLlisten = (listenPromise = listenServer(httpServer, env.PORT));
+  try {
+
+  }finally{
+
+  }
 };
