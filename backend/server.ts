@@ -13,11 +13,13 @@ const request_timeout = 30_000;
 const idle_sweep_interval = 100;
 const drainDelay = env.isProduction ? 5_000 : 0;
 const shutdownTimeout = 35_000;
+const logFlushTimeout = 500;
 
 let shuttingDown = false;
 let server: Server | null = null;
 let httpClosePromise: Promise<void> | null = null;
 let listenPromise: Promise<void> | null = null;
+let exitPromise: Promise<never> | null = null;
 let pendingExitCode = 0;
 let drainController: AbortController | null = null;
 
@@ -66,6 +68,21 @@ const listen = (httpServer: Server, port: number) =>
       resolve();
     });
   });
+
+const exitAfterFlush = (code: number): Promise<never> => {
+  if (code !== 0) pendingExitCode = code;
+  exitPromise ??= (async (): Promise<never> => {
+    await Promise.race([
+      new Promise<void>((resolve) => {
+        logger.flush(() => resolve());
+      }),
+      delay(logFlushTimeout),
+    ]).catch(() => undefined);
+    process.exit(pendingExitCode);
+  })();
+
+  return exitPromise;
+};
 
 const shutdown = async (reason: string, exitCode: number): Promise<void> => {
   if (exitCode !== 0 && pendingExitCode === 0) pendingExitCode = exitCode;
