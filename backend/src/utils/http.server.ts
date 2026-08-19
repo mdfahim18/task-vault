@@ -6,7 +6,7 @@ export const listenServer = (httpServer: Server, port: number): Promise<void> =>
       httpServer.removeListener('listening', onListening)
       reject(err)
     }
-    const onListening = (err: Error): void => {
+    const onListening = (): void => {
       httpServer.removeListener('error', onError)
       resolve()
     }
