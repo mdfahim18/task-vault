@@ -5,6 +5,7 @@ import { logger } from "@utils/logger.js";
 import { createServer, type Server } from "node:http";
 import { listenServer } from "@utils/http.server.js";
 import { setTimeout as delay } from "node:timers/promises";
+import { unknown } from "zod";
 
 const connections_checking_interval = 5_000;
 const keep_alive_timeout = 65_000;
@@ -82,6 +83,16 @@ const exitAfterFlush = (code: number): Promise<never> => {
   })();
 
   return exitPromise;
+};
+
+const initiateShutdown = (reason: string, exitCode: number): void => {
+  void shutdown(reason, exitCode).catch((err: unknown) => {
+    pendingExitCode = 1;
+    drainController?.abort();
+    server?.closeAllConnections();
+    logCrashSafely("fatal", { err, reason }, "shutdown failed");
+    void exitAfterFlush(1);
+  });
 };
 
 const shutdown = async (reason: string, exitCode: number): Promise<void> => {
