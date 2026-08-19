@@ -12,6 +12,7 @@ const headers_timeout = 30_000;
 const request_timeout = 30_000;
 const idle_sweep_interval = 100;
 const drainDelay = env.isProduction ? 5_000 : 0;
+const shutdownTimeout = 35_000;
 
 let shuttingDown = false;
 let server: Server | null = null;
@@ -97,6 +98,27 @@ const shutdown = async (reason: string, exitCode: number): Promise<void> => {
     ["HTTP server", coloseHttpServer],
     ["database connection", disconnectDb],
   ];
+
+  const forceTimer = setTimeout(() => {
+    server?.closeAllConnections();
+
+    try {
+      logger.error(
+        { timeoutMs: shutdownTimeout },
+        "graceful shutdown timed out, forcing exit"
+      );
+    } catch {}
+  }, shutdownTimeout);
+
+  for (const [label, close] of steps) {
+    try {
+      await close();
+    } catch (err) {
+      pendingExitCode = 1;
+      logger.error({ err }, `failed to close ${label}`);
+    }
+  }
+  clearTimeout(forceTimer);
 };
 
 const startServer = async (): Promise<void> => {
