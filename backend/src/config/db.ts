@@ -1,44 +1,68 @@
 import mongoose, {type ConnectOptions} from "mongoose";
-import {logger} from "@utils/logger.js";
 import {env} from "@config/env.js";
+import {service_name} from "@shared/identity.js";
+import {logger} from "@utils/logger.js";
 
-mongoose.connection.on('error', err => {
- logger.error({err}, 'mongodb connection error')
-})
-mongoose.connection.on('disconnected', () => {
- logger.warn( 'mongodb disconnected')
-})
-mongoose.connection.on('reconnected', () => {
- logger.info( 'mongodb reconnected')
-})
+let closingPromise: Promise<void> | null = null
+let connectionPromise: Promise<void> | null = null
+let hasEstablishedClient = false
 
-const isProduction = env.NODE_ENV === 'production'
+const pool_checkout_timeout = 2_000
+const server_selection_timeout = env.isProduction ? 15_000 : 5_000
+const query_timeout = 12_000
+
+const isDbConnected = (): boolean =>
+  mongoose.connection.readyState === mongoose.ConnectionStates.connected
 
 const connection_options: ConnectOptions = {
- maxPoolSize: isProduction ? 100 : 10,
- minPoolSize: isProduction ? 10 : 2,
- serverSelectionTimeoutMS: 5_000,
+ appName: service_name,
+ maxPoolSize: env.isProduction ? 100 : 10,
+ minPoolSize: env.isProduction ? 5 : 0,
+ maxIdleTimeMS: 60_000,
+ waitQueueTimeoutMS: pool_checkout_timeout,
+ serverSelectionTimeoutMS: server_selection_timeout,
+ connectTimeoutMS: 10_000,
  socketTimeoutMS: 45_000,
- heartbeatFrequencyMS: 10_000,
  retryWrites: true,
- compressors: ['snappy', 'zstd'],
- ...(isProduction && {
-  w: 'majority',
-  readPreference: 'secondaryPreferred' as const
+ retryReads: true,
+ compressors: ['zlib'],
+ zlibCompressionLevel: 6,
+ autoIndex: !env.isProduction,
+ autoCreate: !env.isProduction,
+ bufferCommands: false,
+ ...(env.isProduction && {
+  writeConcern: {
+   w: 'majority' as const,
+   wtimeoutMS: query_timeout
+  }
  })
 }
 
-export const connectDb = async (): Promise<void> => {
- if (mongoose.connection.readyState === 1) return
- const connectionDb = await mongoose.connect(env.MONGODB_URI, connection_options)
- logger.info({
-  host: connectionDb.connection.host,
-  name: connectionDb.connection.name
- }, 'mongodb connected')
+const discardClient = async (): Promise<void> => {
+ try {
+   await mongoose.connection.close()
+ } catch (err) {
+   logger.error({err}, 'mongodb failed connect cleanup error')
+ }
 }
 
-export const disconnectDb = async (): Promise<void> => {
- if (mongoose.connection.readyState === 0) return
-  await mongoose.connection.close()
-  logger.info('mongodb connection closed')
+const openConnection = async (): Promise<void> => {
+ try {
+  await mongoose.connect(env.MONGODB_URI, connection_options)
+ } catch {
+  await discardClient()
+  throw new Error('failed to establish mongodb connection')
+ }
+}
+
+export const connectDb = async (): Promise<void> => {
+ if (closingPromise) {
+  throw new Error('Mongodb connection is closing')
+ }
+ if (connectionPromise) return connectionPromise
+ if (isDbConnected()) return
+ if (hasEstablishedClient) {
+  throw new Error('mongodb connection is temporarily unavailable')
+ }
+ const attempt = (connectionPromise = openConnection())
 }
