@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 let closingPromise: Promise<void> | null = null;
 let connectionPromise: Promise<void> | null = null;
+let hasEstablishedClient = false;
 
 const isDbConnected = (): boolean =>
   mongoose.connection.readyState === mongoose.ConnectionStates.connected;
@@ -12,4 +13,7 @@ export const connectDb = async (): Promise<void> => {
   }
   if (connectionPromise) return;
   if (isDbConnected()) return;
+  if (hasEstablishedClient) {
+    throw new Error("mangodb connection is temporarily unavailable");
+  } 
 };
