@@ -7,6 +7,8 @@ let connectionPromise: Promise<void> | null = null;
 let hasEstablishedClient = false;
 
 const pool_checkout_timeout = 2_000;
+const server_selection_timeout = env.isProduction ? 15_000 : 5_000;
+
 const isDbConnected = (): boolean =>
   mongoose.connection.readyState === mongoose.ConnectionStates.connected;
 
@@ -16,6 +18,16 @@ const connection_options: ConnectOptions = {
   minPoolSize: env.isProduction ? 5 : 0,
   maxIdleTimeMS: 60_000,
   waitQueueTimeoutMS: pool_checkout_timeout,
+  serverSelectionTimeoutMS: server_selection_timeout,
+  connectTimeoutMS: 10_000,
+  socketTimeoutMS: 45_000,
+  retryWrites: true,
+  retryReads: true,
+  compressors: ["zlib"],
+  zlibCompressionLevel: 6,
+  autoIndex: !env.isProduction,
+  autoCreate: !env.isProduction,
+  bufferCommands: false,
 };
 
 const openConnection = async (): Promise<void> => {
@@ -35,5 +47,5 @@ export const connectDb = async (): Promise<void> => {
   if (hasEstablishedClient) {
     throw new Error("mangodb connection is temporarily unavailable");
   }
-  const attempt = (connectionPromise = openConnection())
+  const attempt = (connectionPromise = openConnection());
 };
