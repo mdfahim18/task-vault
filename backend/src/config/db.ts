@@ -1,12 +1,22 @@
-import mongoose from "mongoose";
+import mongoose, { type ConnectOptions } from "mongoose";
 import { env } from "@config/env.js";
+import { service_name } from "@shared/indentity.js";
 
 let closingPromise: Promise<void> | null = null;
 let connectionPromise: Promise<void> | null = null;
 let hasEstablishedClient = false;
 
+const pool_checkout_timeout = 2_000;
 const isDbConnected = (): boolean =>
   mongoose.connection.readyState === mongoose.ConnectionStates.connected;
+
+const connection_options: ConnectOptions = {
+  appName: service_name,
+  maxPoolSize: env.isDevelopment ? 100 : 10,
+  minPoolSize: env.isProduction ? 5 : 0,
+  maxIdleTimeMS: 60_000,
+  waitQueueTimeoutMS: pool_checkout_timeout,
+};
 
 const openConnection = async (): Promise<void> => {
   try {
@@ -25,4 +35,5 @@ export const connectDb = async (): Promise<void> => {
   if (hasEstablishedClient) {
     throw new Error("mangodb connection is temporarily unavailable");
   }
+  const attempt = (connectionPromise = openConnection())
 };
