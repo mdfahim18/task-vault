@@ -1,6 +1,7 @@
 import mongoose, { type ConnectOptions } from "mongoose";
 import { env } from "@config/env.js";
 import { service_name } from "@shared/indentity.js";
+import { logger } from "@utils/logger.js";
 
 let closingPromise: Promise<void> | null = null;
 let connectionPromise: Promise<void> | null = null;
@@ -37,10 +38,19 @@ const connection_options: ConnectOptions = {
   }),
 };
 
+const discardClient = async (): Promise<void> => {
+  try {
+    await mongoose.connection.close();
+  } catch (err) {
+    logger.error({ err }, "mongodb failed connect cleanup error");
+  }
+};
+
 const openConnection = async (): Promise<void> => {
   try {
     await mongoose.connect(env.MONGODB_URI, connection_options);
   } catch {
+    await discardClient();
     throw new Error("faild to establish mongodb connection");
   }
 };
