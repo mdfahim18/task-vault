@@ -105,4 +105,9 @@ export const connectDb = async (): Promise<void> => {
     throw new Error("mangodb connection is temporarily unavailable");
   }
   const attempt = (connectionPromise = openConnection());
+  const clearThisAttempt = (): void => {
+    if (connectionPromise === attempt) connectionPromise = null;
+  };
+  void attempt.then(clearThisAttempt, clearThisAttempt);
+  return attempt;
 };
