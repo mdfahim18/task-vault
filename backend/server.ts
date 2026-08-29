@@ -1,5 +1,5 @@
 import { app } from "@app";
-import { connectDb, disconnectDb } from "@config/db.js";
+import { connectDb } from "@config/db.js";
 import { env } from "@config/env.js";
 import { logger } from "@utils/logger.js";
 import { createServer, type Server } from "node:http";
@@ -144,7 +144,7 @@ const shutdown = async (reason: string, exitCode: number): Promise<void> => {
     readonly [label: string, close: () => Promise<void>]
   > = [
     ["HTTP server", closeHttpServer],
-    ["database connection", disconnectDb],
+    // ["database connection", disconnectDb],
   ];
 
   const forceTimer = setTimeout(() => {
@@ -169,8 +169,6 @@ const shutdown = async (reason: string, exitCode: number): Promise<void> => {
   }
   clearTimeout(forceTimer);
   await exitAfterFlush(pendingExitCode);
-
-
 };
 
 const startServer = async (): Promise<void> => {

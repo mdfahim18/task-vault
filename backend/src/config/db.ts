@@ -71,8 +71,28 @@ const openConnection = async (): Promise<void> => {
 
   if (env.isProduction) {
     try {
-    } catch (error) {}
+      await assertTransactionTopology();
+    } catch (err) {
+      await discardClient();
+      throw err;
+    }
   }
+
+  hasEstablishedClient = true;
+  const { host, name } = mongoose.connection;
+
+  logger.info(
+    {
+      host,
+      database: name,
+      poolSize: connection_options.maxPoolSize,
+      poolCheckOutTimeout: pool_checkout_timeout,
+      serverSelectionTimeout: server_selection_timeout,
+      queryTimeout: query_timeout,
+      autoIndex: connection_options.autoIndex,
+    },
+    "mongodb connected"
+  );
 };
 
 export const connectDb = async (): Promise<void> => {
