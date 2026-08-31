@@ -1,4 +1,4 @@
-import {connectDb} from "@config/db.js";
+import {connectDb, disconnectDb} from "@config/db.js";
 import { createServer, type Server } from "node:http";
 import { app } from "@app";
 import { env } from "@config/env.js";
@@ -100,8 +100,9 @@ const shutdown = async (reason: string, exitCode: number): Promise<void> => {
   }
   if (pendingExitCode !== 0) server?.closeAllConnections()
   const steps: ReadonlyArray<readonly [label: string, close: () => Promise<void>]> = [
-    ['HTTP server', closeHttpServer]
-  ];
+    ['HTTP server', closeHttpServer],
+    ['database connection', disconnectDb]
+  ]
 
   const forceTimer = setTimeout(() => {
     server?.closeAllConnections()
