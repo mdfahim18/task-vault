@@ -6,6 +6,7 @@ import { createServer, type Server } from "node:http";
 import { listenServer } from "@utils/http.server.js";
 import { setTimeout as delay } from "node:timers/promises";
 import { clearInterval } from "node:timers";
+import { isShuttingDown } from "@shared/lifecycle.js";
 
 const connections_checking_interval = 5_000;
 const keep_alive_timeout = 65_000;
@@ -28,8 +29,13 @@ let exitPromise: Promise<never> | null = null;
 let pendingExitCode = 0;
 let drainController: AbortController | null = null;
 
-const logCrashSafely = (
-  level: "fatal" | "error",
+const abortGracefullShutdown = (): void => {
+  drainController?.abort();
+  server?.closeAllConnections();
+};
+
+const logSafely = (
+  level: "fatal" | "error" | "warn" | "info",
   bindings: Record<string, unknown>,
   message: string
 ): void => {
@@ -83,7 +89,7 @@ const attachProcessHandlers = (): void => {
   const onFatal =
     (reason: string, level: "fatal" | "error") =>
     (err: unknown): void => {
-      logCrashSafely(level, { err }, `${reason} — initiating shutdown`);
+      logSafely(level, { err }, `${reason} — initiating shutdown`);
       initiateShutdown(reason, 1);
     };
 
@@ -93,12 +99,14 @@ const attachProcessHandlers = (): void => {
   const signals: NodeJS.Signals[] = ["SIGTERM", "SIGINT", "SIGQUIT", "SIGHUP"];
   for (const signal of signals) {
     process.on(signal, () => {
-      if (shuttingDown) {
-        try {
-          logger.warn({ signal }, "Repeated termination signal — forcing exit");
-        } catch {}
-        void exitAfterFlush(1);
-        return;
+      if (isShuttingDown()) {
+        pendingExitCode = 1;
+        abortGracefullShutdown();
+        logSafely(
+          "warn",
+          { signal },
+          "rereated termination signal forcing exit"
+        );
       }
       initiateShutdown(signal, 0);
     });
@@ -110,7 +118,7 @@ const initiateShutdown = (reason: string, exitCode: number): void => {
     pendingExitCode = 1;
     drainController?.abort();
     server?.closeAllConnections();
-    logCrashSafely("fatal", { err, reason }, "shutdown failed");
+    logSafely("fatal", { err, reason }, "shutdown failed");
     void exitAfterFlush(1);
   });
 };
@@ -198,7 +206,7 @@ const startServer = async (): Promise<void> => {
     return;
   }
   httpServer.on("error", (err: NodeJS.ErrnoException) => {
-    logCrashSafely("fatal", { err }, "server encountered a fatal error");
+    logSafely("fatal", { err }, "server encountered a fatal error");
   });
 
   logger.info(
@@ -226,7 +234,7 @@ try {
 } catch (err) {
   const code = (err as NodeJS.ErrnoException | null)?.code ?? "";
   const listenError = listen_errors[code];
-  logCrashSafely(
+  logSafely(
     "fatal",
     { err, ...(listenError && { port: env.PORT }) },
     listenError ? `Port ${env.PORT} ${listenError}` : "Failed to start server"
