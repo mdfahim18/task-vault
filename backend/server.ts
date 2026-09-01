@@ -6,6 +6,7 @@ import { clearInterval } from "node:timers";
 import { logger } from "@utils/logger.js";
 import { listenServer } from "@utils/http.server.js";
 import {setTimeout as delay} from 'node:timers/promises'
+import {isShuttingDown} from "@shared/lifecycle.js";
 
 const connections_checking_interval = 5_000
 const keep_alive_timeout = 65_000
@@ -20,7 +21,6 @@ const listen_errors: Readonly<Record<string, string>> = {
   EACCES: 'requires elevated privileges',
 };
 
-let shuttingDown = false
 let server: Server | null = null
 let httpClosePromise: Promise<void> | null = null
 let listenPromise: Promise<void> | null = null
@@ -28,9 +28,12 @@ let exitPromise: Promise<never> | null = null
 let pendingExitCode = 0
 let drainController: AbortController | null = null
 
-
-const logCrashSafely = (
-  level: 'fatal' | 'error',
+const abortGracefulShutdown = (): void => {
+  drainController?.abort()
+  server?.closeAllConnections()
+}
+const logSafely = (
+  level: 'fatal' | 'error' | 'warn' | 'info',
   bindings: Record<string, unknown>,
   message: string
 ): void => {
@@ -70,14 +73,14 @@ const initiateShutdown = (reason: string, exitCode: number): void => {
     pendingExitCode = 1
     drainController?.abort()
     server?.closeAllConnections()
-    logCrashSafely('fatal', {err, reason}, 'shutdown failed')
+    logSafely('fatal', {err, reason}, 'shutdown failed')
     void exitAfterFlush(1)
   })
 }
 
 const shutdown = async (reason: string, exitCode: number): Promise<void> => {
   if (exitCode !== 0 && pendingExitCode === 0) pendingExitCode = exitCode
-  if (shuttingDown) {
+  if (isShuttingDown()) {
     if (exitCode !== 0) {
       drainController?.abort()
       server?.closeAllConnections()
@@ -141,7 +144,7 @@ const attachProcessHandlers = (): void => {
   const onFatal =
     (reason: string, level: 'fatal' | 'error') =>
       (err: unknown): void => {
-        logCrashSafely(level, { err }, `${reason} — initiating shutdown`)
+        logSafely(level, { err }, `${reason} — initiating shutdown`)
         initiateShutdown(reason, 1)
       };
 
@@ -151,21 +154,20 @@ const attachProcessHandlers = (): void => {
   const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT', 'SIGQUIT', 'SIGHUP']
   for (const signal of signals) {
     process.on(signal, () => {
-      if (shuttingDown) {
-        try {
-          logger.warn({ signal }, 'Repeated termination signal — forcing exit')
-        } catch {}
+      if (isShuttingDown()) {
+        pendingExitCode = 1
+        abortGracefulShutdown()
+        logSafely('warn', {signal}, 'repeated termination signal forcing exit')
         void exitAfterFlush(1)
         return
       }
       initiateShutdown(signal, 0)
-    })
-  }
-}
+  })
+}}
 
 const startServer = async (): Promise<void> => {
   await connectDb()
-  if (shuttingDown) return
+  if (isShuttingDown()) return
   const httpServer = createServer({
     connectionsCheckingInterval: connections_checking_interval
   }, app)
@@ -173,21 +175,22 @@ const startServer = async (): Promise<void> => {
   httpServer.keepAliveTimeout = keep_alive_timeout
   httpServer.headersTimeout = headers_timeout
   httpServer.requestTimeout = request_timeout
-  if (shuttingDown) return
+  if (isShuttingDown()) return
+  const onServerError = (err: Error): void => {
+    logSafely('fatal', { err }, 'Server encountered a fatal error');
+    initiateShutdown('serverError', 1);
+  }
   const pendingListen = (listenPromise = listenServer(httpServer, env.PORT))
   try {
     await pendingListen
   } finally {
     if (listenPromise === pendingListen) listenPromise = null
   }
-  if (shuttingDown) {
+  if (isShuttingDown()) {
     await closeHttpServer()
     return
   }
-  httpServer.on('error', (err: NodeJS.ErrnoException) => {
-    logCrashSafely('fatal', { err }, 'server encountered a fatal error')
-    initiateShutdown('serverError', 1)
-  })
+
   logger.info(
     {
       port: env.PORT,
@@ -209,10 +212,10 @@ try {
 } catch (err) {
   const code = (err as NodeJS.ErrnoException | null)?.code ?? ''
   const listenError = listen_errors[code]
-  logCrashSafely(
+  logSafely(
     'fatal',
     {err, ...(listenError && {port: env.PORT})},
     listenError ? `Port ${env.PORT} ${listenError}` : 'Failed to start server'
   )
-  await shutdown('startupFailure', 1);
+  await shutdown('startupFailure', 1)
 }
