@@ -127,7 +127,7 @@ const initiateShutdown = (reason: string, exitCode: number): void => {
 
 const shutdown = async (reason: string, exitCode: number): Promise<void> => {
   if (exitCode !== 0 && pendingExitCode === 0) pendingExitCode = exitCode;
-  if (shuttingDown) {
+  if (isShuttingDown()) {
     if (exitCode !== 0) {
       drainController?.abort();
       server?.closeAllConnections();
@@ -183,7 +183,7 @@ const shutdown = async (reason: string, exitCode: number): Promise<void> => {
 
 const startServer = async (): Promise<void> => {
   await connectDb();
-  if (shuttingDown) return;
+  if (isShuttingDown()) return;
   const httpServer = createServer(
     {
       connectionsCheckingInterval: connections_checking_interval,
@@ -210,7 +210,7 @@ const startServer = async (): Promise<void> => {
   } finally {
     if (listenPromise === pendingLlisten) listenPromise = null;
   }
-  if (shuttingDown) {
+  if (isShuttingDown()) {
     await closeHttpServer();
     return;
   }
