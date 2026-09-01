@@ -105,8 +105,10 @@ const attachProcessHandlers = (): void => {
         logSafely(
           "warn",
           { signal },
-          "rereated termination signal forcing exit"
+          "repeated termination signal forcing exit"
         );
+        void exitAfterFlush(1);
+        return;
       }
       initiateShutdown(signal, 0);
     });
@@ -194,7 +196,14 @@ const startServer = async (): Promise<void> => {
   httpServer.headersTimeout = headers_timeout;
   httpServer.requestTimeout = request_timeout;
 
-  if (shuttingDown) return;
+  if (isShuttingDown()) return;
+  const onServerError = (err: Error): void => {
+    httpServer.on("error", (err: NodeJS.ErrnoException) => {
+      logSafely("fatal", { err }, "server encountered a fatal error");
+    });
+    initiateShutdown("serverError", 1);
+  };
+
   const pendingLlisten = (listenPromise = listenServer(httpServer, env.PORT));
   try {
     await pendingLlisten;
@@ -205,9 +214,6 @@ const startServer = async (): Promise<void> => {
     await closeHttpServer();
     return;
   }
-  httpServer.on("error", (err: NodeJS.ErrnoException) => {
-    logSafely("fatal", { err }, "server encountered a fatal error");
-  });
 
   logger.info(
     {
