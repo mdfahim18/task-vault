@@ -9,15 +9,12 @@ export const listenServer = (
   onRumTimeError?: ServerErrorHandler
 ): Promise<AddressInfo> =>
   new Promise<AddressInfo>((resolve, reject) => {
-    const onError = (err: Error): void => {
-      httpServer.removeListener("listening", onListening);
+    const detachStartupListeners = (): void => {
+      httpServer.off("error", onBindError);
+    };
+
+    const onBindError = (err: Error): void => {
+      detachStartupListeners();
       reject(err);
     };
-    const onListening = (err: Error): void => {
-      httpServer.removeListener("error", onError);
-      resolve();
-    };
-    httpServer.once("error", onError);
-    httpServer.once("listening", onListening);
-    httpServer.listen(port);
   });
