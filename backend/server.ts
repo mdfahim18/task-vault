@@ -7,6 +7,7 @@ import { logger } from "@utils/logger.js";
 import { listenServer } from "@utils/http.server.js";
 import {setTimeout as delay} from 'node:timers/promises'
 import {isShuttingDown} from "@shared/lifecycle.js";
+import type {AddressInfo} from "node:net";
 
 const connections_checking_interval = 5_000
 const keep_alive_timeout = 65_000
@@ -23,7 +24,7 @@ const listen_errors: Readonly<Record<string, string>> = {
 
 let server: Server | null = null
 let httpClosePromise: Promise<void> | null = null
-let listenPromise: Promise<void> | null = null
+let listenPromise: Promise<AddressInfo> | null = null
 let exitPromise: Promise<never> | null = null
 let pendingExitCode = 0
 let drainController: AbortController | null = null
@@ -180,9 +181,10 @@ const startServer = async (): Promise<void> => {
     logSafely('fatal', { err }, 'Server encountered a fatal error');
     initiateShutdown('serverError', 1);
   }
-  const pendingListen = (listenPromise = listenServer(httpServer, env.PORT))
+  const pendingListen = (listenPromise = listenServer(httpServer, env.PORT, onServerError))
+  let address: AddressInfo
   try {
-    await pendingListen
+    address = await pendingListen
   } finally {
     if (listenPromise === pendingListen) listenPromise = null
   }
@@ -193,7 +195,7 @@ const startServer = async (): Promise<void> => {
 
   logger.info(
     {
-      port: env.PORT,
+      port: address.port,
       env: env.NODE_ENV,
       pid: process.pid,
       node: process.version,
