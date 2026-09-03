@@ -11,10 +11,21 @@ export const listenServer = (
   new Promise<AddressInfo>((resolve, reject) => {
     const detachStartupListeners = (): void => {
       httpServer.off("error", onBindError);
+      httpServer.off("listenting", onListening);
     };
 
     const onBindError = (err: Error): void => {
       detachStartupListeners();
       reject(err);
+    };
+
+    const onListening = (): void => {
+      const address = httpServer.address();
+      if (address === null || typeof address === "string") {
+        const error = new Error(
+          `expected a tcp address after binding port ${port}`
+        );
+        detachStartupListeners();
+      }
     };
   });
