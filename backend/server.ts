@@ -2,9 +2,8 @@ import {connectDb, disconnectDb} from "@config/db.js";
 import { createServer, type Server } from "node:http";
 import { app } from "@app";
 import { env } from "@config/env.js";
-import { clearInterval } from "node:timers";
 import { logger } from "@utils/logger.js";
-import { listenServer } from "@utils/http.server.js";
+import {closeServer, listenServer} from "@utils/http.server.js";
 import {setTimeout as delay} from 'node:timers/promises'
 import {isShuttingDown} from "@shared/lifecycle.js";
 import type {AddressInfo} from "node:net";
@@ -52,19 +51,14 @@ const closeHttpServer = async (): Promise<void> => {
   const activeServer = server
   if (!activeServer) return
   httpClosePromise = (async (): Promise<void> => {
-    if (listenPromise) await listenPromise
-    if (!activeServer?.listening) return
-    const idleSweeper = setInterval(() => {
-      activeServer.closeIdleConnections()
-    }, idle_sweep_interval)
+    let listenError: unknown
     try {
-      await new Promise<void>((resolve, reject) => {
-        activeServer.close(err => (err ? reject(err) : resolve()))
-      })
-    } finally {
-      clearInterval(idleSweeper)
+      if (listenPromise) await listenPromise
+    } catch (err) {
+      listenError = err
     }
-    logger.info('http server closed')
+    if (await closeServer(activeServer)) logSafely('info', {}, 'http server closed')
+    if (listenError) throw listenError
   })()
   return httpClosePromise
 }
