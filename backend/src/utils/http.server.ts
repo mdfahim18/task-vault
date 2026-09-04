@@ -26,6 +26,20 @@ export const listenServer = (
           `expected a tcp address after binding port ${port}`
         );
         detachStartupListeners();
+        if (!httpServer.listening) {
+          reject(error);
+          return;
+        }
+        try {
+          httpServer.close(() => reject(error));
+        } catch {
+          reject(error);
+        }
+        return;
       }
+
+      if (onRumTimeError) httpServer.on("error", onRumTimeError);
+      detachStartupListeners();
+      resolve(address);
     };
   });
