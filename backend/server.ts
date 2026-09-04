@@ -7,6 +7,7 @@ import { listenServer } from "@utils/http.server.js";
 import { setTimeout as delay } from "node:timers/promises";
 import { clearInterval } from "node:timers";
 import { isShuttingDown } from "@shared/lifecycle.js";
+import type { AddressInfo } from "node:net";
 
 const connections_checking_interval = 5_000;
 const keep_alive_timeout = 65_000;
@@ -24,7 +25,7 @@ const listen_errors: Readonly<Record<string, string>> = {
 let shuttingDown = false;
 let server: Server | null = null;
 let httpClosePromise: Promise<void> | null = null;
-let listenPromise: Promise<void> | null = null;
+let listenPromise: Promise<AddressInfo> | null = null;
 let exitPromise: Promise<never> | null = null;
 let pendingExitCode = 0;
 let drainController: AbortController | null = null;
@@ -204,7 +205,11 @@ const startServer = async (): Promise<void> => {
     initiateShutdown("serverError", 1);
   };
 
-  const pendingLlisten = (listenPromise = listenServer(httpServer, env.PORT));
+  const pendingLlisten = (listenPromise = listenServer(
+    httpServer,
+    env.PORT,
+    onServerError
+  ));
   try {
     await pendingLlisten;
   } finally {
