@@ -210,8 +210,9 @@ const startServer = async (): Promise<void> => {
     env.PORT,
     onServerError
   ));
+  let address: AddressInfo
   try {
-    await pendingLlisten;
+   address =  await pendingLlisten;
   } finally {
     if (listenPromise === pendingLlisten) listenPromise = null;
   }
