@@ -3,6 +3,8 @@ import type { AddressInfo } from "node:net";
 
 type ServerErrorHandler = (err: Error) => void;
 
+const idle_sweep_interval = 100;
+
 export const listenServer = (
   httpServer: Server,
   port: number,
@@ -48,22 +50,23 @@ export const listenServer = (
     try {
       httpServer.listen(port);
     } catch (err) {
-      detachStartupListeners()
-      reject(err)
+      detachStartupListeners();
+      reject(err);
     }
   });
 
-  export const closeServer = () => {
-    if (!activeServer?.listening) return;
-        const idelSweeper = setInterval(() => {
-          activeServer.closeIdleConnections();
-        }, idle_sweep_interval);
-        try {
-          await new Promise<void>((resolve, reject) => {
-            activeServer.close((err) => (err ? reject(err) : resolve()));
-          });
-        } finally {
-          clearInterval(idelSweeper);
-        }
-        logger.info("http server closed");
+export const closeServer = async (httpServer: Server): Promise<boolean> => {
+  if (!httpServer.listening) return false;
+  const idleSweeper = setInterval(() => {
+    httpServer.closeIdleConnections();
+  }, idle_sweep_interval);
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      httpServer.close((err) => (err ? reject(err) : resolve()));
+    });
+  } finally {
+    clearInterval(idleSweeper);
   }
+  return true;
+};
