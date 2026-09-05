@@ -1,21 +1,24 @@
 import {connectDb, disconnectDb} from "@config/db.js";
 import { createServer, type Server } from "node:http";
-import { app } from "@app";
+import {api_timeout, app} from "@app";
 import { env } from "@config/env.js";
 import { logger } from "@utils/logger.js";
 import {closeServer, listenServer} from "@utils/http.server.js";
 import {setTimeout as delay} from 'node:timers/promises'
-import {isShuttingDown} from "@shared/lifecycle.js";
+import {beginShutdown, isShuttingDown} from "@shared/lifecycle.js";
 import type {AddressInfo} from "node:net";
 
 const connections_checking_interval = 5_000
 const keep_alive_timeout = 65_000
 const headers_timeout = 30_000
 const request_timeout = 30_000
-const idle_sweep_interval = 100
 const drainDelay = env.isProduction ? 5_000 : 0
-const shutdownTimeout = 35_000
+const cleanup_margin = 15_000
+const request_tail = request_timeout + Math.max(connections_checking_interval, api_timeout)
+const shutdownTimeout = request_tail + cleanup_margin
 const logFlushTimeout = 500
+const terminationDeadline = drainDelay + shutdownTimeout + logFlushTimeout
+
 const listen_errors: Readonly<Record<string, string>> = {
   EADDRINUSE: 'is already in use',
   EACCES: 'requires elevated privileges',
@@ -28,6 +31,16 @@ let exitPromise: Promise<never> | null = null
 let pendingExitCode = 0
 let drainController: AbortController | null = null
 
+type cleanUpStep = readonly [label: string, close: () => void | Promise<void>]
+
+const runCleanupStep = async ([label, close]: cleanUpStep): Promise<void> => {
+  try {
+    await close()
+  } catch (err) {
+    pendingExitCode = 1
+    logSafely('error', { err }, `Failed to close ${label}`)
+  }
+}
 const abortGracefulShutdown = (): void => {
   drainController?.abort()
   server?.closeAllConnections()
@@ -66,8 +79,7 @@ const closeHttpServer = async (): Promise<void> => {
 const initiateShutdown = (reason: string, exitCode: number): void => {
   void shutdown(reason, exitCode).catch((err: unknown) => {
     pendingExitCode = 1
-    drainController?.abort()
-    server?.closeAllConnections()
+    abortGracefulShutdown()
     logSafely('fatal', {err, reason}, 'shutdown failed')
     void exitAfterFlush(1)
   })
@@ -77,16 +89,17 @@ const shutdown = async (reason: string, exitCode: number): Promise<void> => {
   if (exitCode !== 0 && pendingExitCode === 0) pendingExitCode = exitCode
   if (isShuttingDown()) {
     if (exitCode !== 0) {
-      drainController?.abort()
-      server?.closeAllConnections()
-      logger.error({ reason, exitCode }, 'fatal error during shutdown')
+     abortGracefulShutdown()
+      logSafely('error', {reason, exitCode}, 'fatal error during shutdown')
     }
     return
   }
-  shuttingDown = true
-  logger.info({reason, exitCode}, 'shutting down')
+  beginShutdown()
+
+  logSafely('info', { reason, exitCode }, 'Shutting down')
+
   if (pendingExitCode === 0 && drainDelay > 0) {
-    logger.info({drainDelay: drainDelay}, 'draining before closing listener')
+    logSafely('info', {drainDelay: drainDelay}, 'Draining before closing listener')
     drainController = new AbortController()
     try {
       await delay(drainDelay, undefined, {signal: drainController.signal})
@@ -97,26 +110,15 @@ const shutdown = async (reason: string, exitCode: number): Promise<void> => {
     }
   }
   if (pendingExitCode !== 0) server?.closeAllConnections()
-  const steps: ReadonlyArray<readonly [label: string, close: () => Promise<void>]> = [
-    ['HTTP server', closeHttpServer],
-    ['database connection', disconnectDb]
-  ]
 
   const forceTimer = setTimeout(() => {
     server?.closeAllConnections()
-    try {
-      logger.error({ timeoutMs: shutdownTimeout}, 'Graceful shutdown timed out, forcing exit')
-    } catch {}
+    logSafely('error', {timeout: shutdownTimeout}, 'graceful shutdown timedout and forcing exit')
     void exitAfterFlush(1)
   }, shutdownTimeout)
-  for (const [label, close] of steps) {
-    try {
-      await close()
-    } catch (err) {
-      pendingExitCode = 1
-      logger.error({ err }, `Failed to close ${label}`);
-    }
-  }
+
+  await runCleanupStep(['HTTP server', closeHttpServer])
+  await  runCleanupStep(['database connection', disconnectDb])
   clearTimeout(forceTimer)
   await exitAfterFlush(pendingExitCode)
 }
@@ -193,12 +195,13 @@ const startServer = async (): Promise<void> => {
       env: env.NODE_ENV,
       pid: process.pid,
       node: process.version,
+      terminationDeadline: terminationDeadline
     },
     'Server started'
   );
 
   if (env.isDevelopment) {
-    const baseUrl = `http://localhost:${env.PORT}`
+    const baseUrl = `http://localhost:${address.port}`
     logger.info({ api: `${baseUrl}`, health: `${baseUrl}/health` }, 'Local endpoints')
   }
 }
