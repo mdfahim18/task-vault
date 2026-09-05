@@ -3,9 +3,8 @@ import { connectDb, disconnectDb } from "@config/db.js";
 import { env } from "@config/env.js";
 import { logger } from "@utils/logger.js";
 import { createServer, type Server } from "node:http";
-import { listenServer } from "@utils/http.server.js";
+import { closeServer, listenServer } from "@utils/http.server.js";
 import { setTimeout as delay } from "node:timers/promises";
-import { clearInterval } from "node:timers";
 import { isShuttingDown } from "@shared/lifecycle.js";
 import type { AddressInfo } from "node:net";
 
@@ -54,19 +53,15 @@ const closeHttpServer = async (): Promise<void> => {
   const activeServer = server;
   if (!activeServer) return;
   httpClosePromise = (async (): Promise<void> => {
-    if (listenPromise) await listenPromise;
-    if (!activeServer?.listening) return;
-    const idelSweeper = setInterval(() => {
-      activeServer.closeIdleConnections();
-    }, idle_sweep_interval);
+    let listenError: unknown;
     try {
-      await new Promise<void>((resolve, reject) => {
-        activeServer.close((err) => (err ? reject(err) : resolve()));
-      });
-    } finally {
-      clearInterval(idelSweeper);
+      if (listenPromise) await listenPromise;
+    } catch (err) {
+      listenError = err;
     }
-    logger.info("http server closed");
+    if (await closeServer(activeServer))
+      logSafely("info", {}, "http server closed");
+    if (listenError) throw listenError;
   })();
   return httpClosePromise;
 };
@@ -210,9 +205,9 @@ const startServer = async (): Promise<void> => {
     env.PORT,
     onServerError
   ));
-  let address: AddressInfo
+  let address: AddressInfo;
   try {
-   address =  await pendingLlisten;
+    address = await pendingLlisten;
   } finally {
     if (listenPromise === pendingLlisten) listenPromise = null;
   }
@@ -223,7 +218,7 @@ const startServer = async (): Promise<void> => {
 
   logger.info(
     {
-      port: env.PORT,
+      port: address.port,
       env: env.NODE_ENV,
       pid: process.pid,
       node: process.version,

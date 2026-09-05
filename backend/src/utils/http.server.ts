@@ -52,3 +52,18 @@ export const listenServer = (
       reject(err)
     }
   });
+
+  export const closeServer = () => {
+    if (!activeServer?.listening) return;
+        const idelSweeper = setInterval(() => {
+          activeServer.closeIdleConnections();
+        }, idle_sweep_interval);
+        try {
+          await new Promise<void>((resolve, reject) => {
+            activeServer.close((err) => (err ? reject(err) : resolve()));
+          });
+        } finally {
+          clearInterval(idelSweeper);
+        }
+        logger.info("http server closed");
+  }
