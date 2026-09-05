@@ -5,14 +5,13 @@ import { logger } from "@utils/logger.js";
 import { createServer, type Server } from "node:http";
 import { closeServer, listenServer } from "@utils/http.server.js";
 import { setTimeout as delay } from "node:timers/promises";
-import { isShuttingDown } from "@shared/lifecycle.js";
+import { beginShutdown, isShuttingDown } from "@shared/lifecycle.js";
 import type { AddressInfo } from "node:net";
 
 const connections_checking_interval = 5_000;
 const keep_alive_timeout = 65_000;
 const headers_timeout = 30_000;
 const request_timeout = 30_000;
-const idle_sweep_interval = 100;
 const drainDelay = env.isProduction ? 5_000 : 0;
 const shutdownTimeout = 35_000;
 const logFlushTimeout = 500;
@@ -125,16 +124,19 @@ const shutdown = async (reason: string, exitCode: number): Promise<void> => {
   if (exitCode !== 0 && pendingExitCode === 0) pendingExitCode = exitCode;
   if (isShuttingDown()) {
     if (exitCode !== 0) {
-      drainController?.abort();
-      server?.closeAllConnections();
-      logger.error({ reason, exitCode }, "fatal error during shutdow");
+      abortGracefullShutdown();
+      logSafely("error", { reason, exitCode }, "fatal error during shutdow");
     }
     return;
   }
-  shuttingDown = true;
-  logger.info({ reason, exitCode }, "shutting down");
+  beginShutdown();
+  logSafely("info", { reason, exitCode }, "shutting down");
   if (pendingExitCode === 0 && drainDelay > 0) {
-    logger.info({ drainDelay: drainDelay }, "draining before closing listener");
+    logSafely(
+      "info",
+      { drainDelay: drainDelay },
+      "draining before closing listener"
+    );
     drainController = new AbortController();
     try {
       await delay(drainDelay, undefined, { signal: drainController.signal });
@@ -146,33 +148,20 @@ const shutdown = async (reason: string, exitCode: number): Promise<void> => {
   }
 
   if (pendingExitCode !== 0) server?.closeAllConnections();
-  const steps: ReadonlyArray<
-    readonly [label: string, close: () => Promise<void>]
-  > = [
-    ["HTTP server", closeHttpServer],
-    ["database connection", disconnectDb],
-  ];
 
   const forceTimer = setTimeout(() => {
     server?.closeAllConnections();
 
     try {
-      logger.error(
-        { timeoutMs: shutdownTimeout },
-        "graceful shutdown timed out, forcing exit"
+      logSafely(
+        "error",
+        { timeout: shutdownTimeout },
+        "graceful shutdown timeout and forcing exit"
       );
     } catch {}
     void exitAfterFlush(1);
   }, shutdownTimeout);
 
-  for (const [label, close] of steps) {
-    try {
-      await close();
-    } catch (err) {
-      pendingExitCode = 1;
-      logger.error({ err }, `failed to close ${label}`);
-    }
-  }
   clearTimeout(forceTimer);
   await exitAfterFlush(pendingExitCode);
 };
