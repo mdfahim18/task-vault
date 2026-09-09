@@ -31,9 +31,9 @@ let exitPromise: Promise<never> | null = null
 let pendingExitCode = 0
 let drainController: AbortController | null = null
 
-type cleanUpStep = readonly [label: string, close: () => void | Promise<void>]
+type CleanUpStep = readonly [label: string, close: () => void | Promise<void>]
 
-const runCleanupStep = async ([label, close]: cleanUpStep): Promise<void> => {
+const runCleanupStep = async ([label, close]: CleanUpStep): Promise<void> => {
   try {
     await close()
   } catch (err) {
