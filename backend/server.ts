@@ -2,11 +2,11 @@ import {connectDb, disconnectDb} from "@config/db.js";
 import { createServer, type Server } from "node:http";
 import {api_timeout, app} from "@app";
 import { env } from "@config/env.js";
-import { logger } from "@utils/logger.js";
 import {closeServer, listenServer} from "@utils/http.server.js";
 import {setTimeout as delay} from 'node:timers/promises'
 import {beginShutdown, isShuttingDown} from "@shared/lifecycle.js";
 import type {AddressInfo} from "node:net";
+import { logger } from "@utils/logger.js";
 
 const connections_checking_interval = 5_000
 const keep_alive_timeout = 65_000
@@ -166,12 +166,12 @@ const startServer = async (): Promise<void> => {
   await connectDb()
   if (isShuttingDown()) return
   const httpServer = createServer({
-    connectionsCheckingInterval: connections_checking_interval
+    connectionsCheckingInterval: connections_checking_interval,
+    keepAliveTimeout: keep_alive_timeout,
+    headersTimeout: headers_timeout,
+    requestTimeout: request_timeout,
   }, app)
   server = httpServer
-  httpServer.keepAliveTimeout = keep_alive_timeout
-  httpServer.headersTimeout = headers_timeout
-  httpServer.requestTimeout = request_timeout
   if (isShuttingDown()) return
   const onServerError = (err: Error): void => {
     logSafely('fatal', { err }, 'Server encountered a fatal error');
