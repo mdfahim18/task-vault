@@ -12,7 +12,7 @@ const assertIntegerConfiguration = (fallback: number, {min, max}: IntegerBounds)
 }
 
 const blankToUndefined = (value: unknown, mode: 'trim' | 'preserve'): unknown => {
-  if (typeof value ! == 'string') return value
+  if (typeof value !== 'string') return value
   const trimmed = value.trim()
   if (trimmed === '') return undefined
   return mode === 'trim' ? trimmed : value

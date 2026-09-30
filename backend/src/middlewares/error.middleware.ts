@@ -2,7 +2,7 @@ import type {ErrorRequestHandler, NextFunction} from "express";
 import type {FieldError} from "@shared/http/envelope.js";
 
 interface ErrorLike {
-  name?: string,
+  name?: string
   code?: number | string
   statusCode?: number
   status?: number
