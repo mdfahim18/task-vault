@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 
 import { AlertCircle } from "lucide-react";
@@ -5,7 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useAuthActions } from "@/hooks/useAuthContext";
 
-const Page = () => {
+const Register = () => {
   const { register: registerUser } = useAuthActions();
   return (
     <div className="flex min-h-[80vh] items-center justify-center">
@@ -46,4 +48,4 @@ const Page = () => {
     </div>
   );
 };
-export default Page;
+export default Register;
