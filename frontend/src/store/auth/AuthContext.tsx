@@ -16,6 +16,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const register = useCallback(
     async (data: { name: string; email: string; password: string }) => {
       dispatch({ type: AuthActions.set_loading, payload: true });
+
+      try {
+        return false;
+      } finally {
+        dispatch({ type: AuthActions.set_loading, payload: false });
+      }
     },
     []
   );
