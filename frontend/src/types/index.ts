@@ -6,3 +6,12 @@ export interface User {
   createdAt?: string | Date;
   updateAt?: string | Date;
 }
+
+export interface AuthResponseData {
+  user: User
+}
+
+export interface ApiResponse {
+  success: boolean,
+  message?: string
+}

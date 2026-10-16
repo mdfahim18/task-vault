@@ -1,4 +1,5 @@
 import { createContext } from "react";
+import type { AuthState } from "./AuthReducer";
 
 export interface AuthActionsValue {
   register: (data: {
@@ -9,3 +10,4 @@ export interface AuthActionsValue {
 }
 
 export const AuthActionsContext = createContext<AuthActionsValue | null>(null);
+export const AuthStateContext = createContext<AuthState | null>(null);

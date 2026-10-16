@@ -1,7 +1,12 @@
-import { ReactNode, useCallback, useReducer } from "react";
+import { ReactNode, useCallback, useMemo, useReducer } from "react";
 import { authReducer, AuthState } from "./AuthReducer";
 import { AuthActions } from "./AuthActions";
-import { AuthActionsContext } from "./AuthContentValue";
+import {
+  AuthActionsContext,
+  AuthActionsValue,
+  AuthStateContext,
+} from "./AuthContentValue";
+import { authService } from "@/services/authService";
 
 const initial_state: AuthState = {
   user: null,
@@ -18,7 +23,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       dispatch({ type: AuthActions.set_loading, payload: true });
 
       try {
-        return false;
+        const { user } = await authService.register(data);
+        dispatch({ type: AuthActions.login_success, payload: { user } });
+        return true;
       } finally {
         dispatch({ type: AuthActions.set_loading, payload: false });
       }
@@ -26,11 +33,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     []
   );
 
-  const actionsValue = { register };
+  const actionsValue = useMemo<AuthActionsValue>(
+    () => ({ register }),
+    [register]
+  );
 
   return (
-    <AuthActionsContext.Provider value={actionsValue}>
-      {children}
-    </AuthActionsContext.Provider>
+    <AuthStateContext.Provider value={state}>
+      <AuthActionsContext.Provider value={actionsValue}>
+        {children}
+      </AuthActionsContext.Provider>
+    </AuthStateContext.Provider>
   );
 };

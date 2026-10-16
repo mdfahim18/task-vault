@@ -8,7 +8,12 @@ export interface AuthState {
   error: string | null;
 }
 
-type AuthAction = { type: typeof AuthActions.set_loading; payload: boolean };
+type AuthAction =
+  | { type: typeof AuthActions.set_loading; payload: boolean }
+  | {
+      type: typeof AuthActions.login_success;
+      payload: { user: User };
+    };
 
 export const authReducer = (
   state: AuthState,
@@ -19,6 +24,13 @@ export const authReducer = (
       return {
         ...state,
         isLoading: action.payload,
+      };
+    case AuthActions.login_success:
+      return {
+        ...state,
+        user: action.payload.user,
+        isAuthenticated: true,
+        error: null,
       };
     default:
       return state;
