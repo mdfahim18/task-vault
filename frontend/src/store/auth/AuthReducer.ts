@@ -13,7 +13,8 @@ type AuthAction =
   | {
       type: typeof AuthActions.login_success;
       payload: { user: User };
-    };
+    }
+  | { type: typeof AuthActions.set_error; payload: string };
 
 export const authReducer = (
   state: AuthState,
@@ -31,6 +32,11 @@ export const authReducer = (
         user: action.payload.user,
         isAuthenticated: true,
         error: null,
+      };
+    case AuthActions.set_error:
+      return {
+        ...state,
+        error: action.payload,
       };
     default:
       return state;

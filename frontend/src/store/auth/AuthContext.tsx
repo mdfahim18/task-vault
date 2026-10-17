@@ -7,6 +7,7 @@ import {
   AuthStateContext,
 } from "./AuthContentValue";
 import { authService } from "@/services/authService";
+import { getErrorMessage } from "@/lib/errors";
 
 const initial_state: AuthState = {
   user: null,
@@ -26,6 +27,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const { user } = await authService.register(data);
         dispatch({ type: AuthActions.login_success, payload: { user } });
         return true;
+      } catch (error) {
+        dispatch({
+          type: AuthActions.set_error,
+          payload: getErrorMessage(error),
+        });
+        throw error;
       } finally {
         dispatch({ type: AuthActions.set_loading, payload: false });
       }
