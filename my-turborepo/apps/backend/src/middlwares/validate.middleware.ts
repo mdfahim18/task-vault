@@ -7,15 +7,19 @@ type Validated = {
   body?: Schema;
 };
 
-const parseOrThrow = (schema: Schema, value: unknown): unknown => {
-  const result = schema.safeParse(value);
+const parseOrThrow = async <S extends Schema>(
+  schema: S,
+  value: unknown
+): Promise<z.output<S>> => {
+  const result = await schema.safeParseAsync(value);
   if (!result.success) {
-    const errors: readonly FieldError[] = toFieldErrors();
+    const errors = toFieldErrors(result.error.issues);
   }
 };
 
 export const validate = (schemas: Validated): RequestHandler => {
-  return (req, _res, next) => {
-    if (schemas.body) req.body = parseOrThrow();
-  };
+  if (schemas.body) {
+    ("validate() needs at least one of `body`, `params` or `query`");
+  }
+  return (req, _res, next) => {};
 };
