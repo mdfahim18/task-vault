@@ -1,14 +1,21 @@
 import { z } from "zod";
 import type { RequestHandler } from "express";
+import { toFieldErrors, type FieldError } from "@task-vault/shared/validation";
 
 type Schema = z.ZodType;
 type Validated = {
   body?: Schema;
 };
-type RequestPart = keyof Validated;
 
-const part_order: readonly RequestPart[] = ["body"];
+const parseOrThrow = (schema: Schema, value: unknown): unknown => {
+  const result = schema.safeParse(value);
+  if (!result.success) {
+    const errors: readonly FieldError[] = toFieldErrors();
+  }
+};
 
 export const validate = (schemas: Validated): RequestHandler => {
-  const jobs = part_order;
+  return (req, _res, next) => {
+    if (schemas.body) req.body = parseOrThrow();
+  };
 };
